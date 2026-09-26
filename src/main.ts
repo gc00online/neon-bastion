@@ -1,4 +1,9 @@
 import './style.css';
+import '@fontsource/gaegu/korean-700.css';
+import '@fontsource/gaegu/latin-700.css';
+import '@fontsource/nanum-brush-script/korean-400.css';
+import '@fontsource/nanum-brush-script/latin-400.css';
+import './style-polish.css';
 import Phaser from 'phaser';
 import { W, H, RES, COLOR } from './config';
 import { BootScene } from './scenes/BootScene';

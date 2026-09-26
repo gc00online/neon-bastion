@@ -4,21 +4,23 @@ import { save, persist, applySettings } from '../save';
 import { music } from '../music';
 import { L, lang, setLang } from '../i18n';
 import { todayModifier, todayKey } from '../data/daily';
-import { asset, bind, coin, mountScreen } from '../ui/dom';
+import { asset, bind, coin, mountScreen, navGlyph } from '../ui/dom';
 
 export class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
+  private openDaily = false;
+  init(data?: { openDaily?: boolean }) { this.openDaily = !!data?.openDaily; }
   create() {
     setupCamera(this);
     const { root } = mountScreen(this, `
       <img class="screen-bg" src="${asset('title.webp')}" alt="">
       <video class="screen-bg title-video" muted loop playsinline preload="none" poster="${asset('title.webp')}" aria-hidden="true"></video>
       <div class="title-shade"></div>
-      <header class="menu-top"><span class="eyebrow">${L('오늘도 따뜻한 한 그릇', 'A LITTLE WARMTH AFTER DARK')}</span><button class="round-button" data-action="settings" aria-label="${L('설정', 'Settings')}">⚙</button></header>
+      <header class="menu-top"><button class="round-button" data-action="settings" aria-label="${L('설정', 'Settings')}">⚙</button><span class="wallet">${coin(save.gems)}</span></header>
       <div class="title-block"><p class="overline">${L('달이 뜨면, 영업 시작', 'WHEN THE MOON RISES')}</p><h1>${L('심야분식', 'Midnight<br>Snack Stall')}</h1><p class="title-sub">${L('마지막 떡볶이를 지켜라', 'Defend the last bowl of tteokbokki')}</p><div class="title-rule"><span>✦</span></div></div>
-      <div class="menu-actions"><div class="menu-wallet">${coin(save.gems)}<span>${L('모은 엽전', 'COINS COLLECTED')}</span></div>
+      <div class="menu-actions">
       <button class="primary large" data-action="play">${L('영업 시작', 'Open the shop')} <span>↗</span></button>
-      <div class="button-pair"><button class="paper-button" data-action="lab">▤ ${L('비밀 레시피', 'Secret recipes')}</button><button class="paper-button" data-action="daily">☾ ${L('오늘의 도전', 'Daily special')}</button></div>
+      <div class="button-pair"><button class="paper-button" data-action="lab">${navGlyph('Lab')} ${L('비밀 레시피', 'Secret recipes')}</button><button class="paper-button" data-action="daily">${navGlyph('Daily')} ${L('오늘의 도전', 'Daily special')}</button></div>
       <p class="menu-foot">${L('작은 냄비 하나, 끝없는 맛있는 밤.', 'One little pot. Endless delicious nights.')}</p></div>`, 'menu-screen');
     const video = root.querySelector('video')!;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -37,7 +39,7 @@ export class MenuScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { stopped = true; document.removeEventListener('visibilitychange', visibility); });
     bind(root, 'play', () => this.scene.start('Stages'));
     bind(root, 'lab', () => this.scene.start('Lab'));
-    bind(root, 'daily', () => {
+    const openChallenge = () => {
       const mod = todayModifier(todayKey());
       const dialog = document.createElement('dialog');
       dialog.className = 'paper-dialog';
@@ -45,7 +47,9 @@ export class MenuScene extends Phaser.Scene {
       root.append(dialog); dialog.showModal();
       bind(dialog, 'begin', () => this.scene.start('Game', { daily: true }));
       bind(dialog, 'close', () => dialog.remove());
-    });
+    };
+    bind(root, 'daily', openChallenge);
+    if (this.openDaily) openChallenge();
     bind(root, 'settings', () => this.settings(root));
     music.play(0);
   }

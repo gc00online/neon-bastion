@@ -38,7 +38,7 @@ npm run build
 | `src/scenes/LabScene.ts` | 냄비 성장, 영구 레시피 |
 | `src/scenes/GameScene.ts` | 전투, 레시피 선택, 결과 |
 | `src/game/progression.ts`, `src/game/saveSchema.ts` | 보상·진행도와 저장 마이그레이션 |
-| `src/style.css`, `src/ui/dom.ts` | 반응형 UI와 화면 수명 관리 |
+| `src/style.css`, `src/style-polish.css`, `src/ui/dom.ts` | 반응형 UI, 손그림 질감, 화면 수명 관리 |
 | `public/art/` | 적용된 컨셉 이미지·스프라이트·영상 |
 | `tests/progression.test.mjs` | 저장 호환·보상·해금·레벨 검사 |
 

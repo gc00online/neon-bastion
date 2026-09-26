@@ -1,53 +1,56 @@
-# Neon Bastion — 로그라이크 디펜스
+# 심야분식 — 마지막 떡볶이를 지켜라
 
-광고 없는 세로형 모바일 디펜스 게임. Phaser 3 + TypeScript + Vite, 앱 포장은 Capacitor 8.
-한국어/영어 지원(기기 언어 자동 선택, 메뉴 › 설정에서 변경).
+서울의 작은 심야 분식집을 지키는 세로형 로그라이크 디펜스. 기존 Neon Bastion의 전투 시스템을 따뜻한 밤 골목과 음식 캐릭터로 재구성했습니다. Phaser 3 + TypeScript + Vite 8, 네이티브 포장은 Capacitor 8입니다.
 
-- 웹에서 플레이: https://gc00online.github.io/neon-bastion/ (main 에 푸시하면 자동 배포)
-- 개인정보처리방침: https://gc00online.github.io/neon-bastion/privacy.html
+## 플레이 흐름
 
-## 게임 구조
-- 기지가 자동으로 공격하고, **웨이브가 끝날 때마다 카드 3장 중 1장**을 골라 빌드를 만든다. (카드 24종)
-- 5웨이브마다 보스: 헥스 타이탄 → 하이브 퀸(졸개 소환) → 아틸러리(원거리 탄막) 순환.
-- 일반 적 9종(기본·돌격·탱커·무리·사수·분열·힐러·순간이동 등) + 보스 3종. 웨이브가 오를수록 새 적 등장.
-- 판이 끝나면 보석 → **연구소**에서 영구 강화.
-- **일일 도전**: 날짜별 고정 시드 + 특수 규칙 7종 중 하나. 그날 첫 판은 보석 2배.
-- 첫 플레이 도움말, 설정(효과음/배경음악/진동/언어), 2배속, 일시정지.
-- 그래픽·효과음·배경음악 모두 코드로 생성 → 에셋 파일·저작권 걱정 없음.
-- 저장: 웹은 localStorage, 앱에서는 Capacitor Preferences(OS가 지우지 않는 저장소).
+- 움직이는 가게 배경 → 밤마실 지도 → 5개 골목을 차례로 개방합니다.
+- 냄비가 자동으로 공격하고 웨이브를 마칠 때마다 3개 레시피 중 하나를 선택합니다. 기존 24종 카드와 12종 적 행동을 유지합니다.
+- 첫 스테이지는 5웨이브, 뒤로 갈수록 5~15웨이브. 완료 시 남은 체력에 따라 별 1~3개와 최초 1회 보상을 받습니다.
+- 영업 종료 후 엽전으로 비밀 레시피 10종을 영구 강화합니다. 경험치 200마다 냄비 표시 레벨이 오릅니다. 표시 레벨 자체의 능력치 보너스는 없고 능력치 강화는 레시피 구매로 적용됩니다.
+- 매일 규칙이 바뀌는 무한 도전, 첫 일일 영업 보상 2배, 일시정지와 2배속을 지원합니다.
+- 한국어/영어는 앱에서 렌더링합니다. 배경 이미지와 영상에는 제목이나 UI 문자를 넣지 않았습니다.
+- 메뉴 영상은 무음 재생되며 자동 재생이 막히거나 동작 줄이기 설정을 사용하면 정지 이미지가 표시됩니다.
 
-## 실행 (웹 브라우저)
-```bash
-npm install
+## 개발
+
+Node.js 22.18 이상(24 권장)이 필요합니다.
+
+```sh
+npm ci
 npm run dev
+npm test
+npm run build
 ```
-폰으로 보려면 같은 와이파이에서 터미널에 나오는 `Network:` 주소로 접속.
+
+웹 미리보기는 개발 서버 주소로 접속합니다. `main`에 푸시하면 기존 GitHub Pages 워크플로가 배포하므로 작업 브랜치에서 검토하세요. 저장소 주소와 네이티브 앱 ID는 기존 설치 호환을 위해 유지했습니다.
+
+## 저장 호환성
+
+기존 `neon-bastion-save-v1` 키를 유지합니다. 기존 보석 잔액은 엽전으로, 연구소 강화는 비밀 레시피로 이어지며 최고 기록·설정·일일 기록도 보존합니다. 새 필드 `xp`, `stages`는 기본값으로 채웁니다. 웹은 localStorage, 앱은 Capacitor Preferences를 사용합니다.
 
 ## 주요 파일
-| 파일 | 내용 |
-|---|---|
-| `src/data/cards.ts` | 업그레이드 카드, 등급 확률 |
-| `src/data/enemies.ts` | 적·보스 능력치, 웨이브 구성, 난이도 곡선 |
-| `src/data/lab.ts` | 연구소(영구 강화) 항목과 비용 |
-| `src/data/daily.ts` | 일일 도전 규칙, 시드 |
-| `src/game/stats.ts` | 기지 능력치와 능력별 수치 공식 |
-| `src/scenes/GameScene.ts` | 전투 로직 전부 |
-| `src/audio.ts`, `src/music.ts` | 효과음, 배경음악 합성 |
-| `src/i18n.ts` | 언어 선택 (`L('한국어', 'English')`) |
 
-## 개발용 도구 (npm run dev 에서만, 브라우저 콘솔)
-| 명령 | 설명 |
-|---|---|
-| `simLab(3, 10, 'smart')` | 봇이 연구소 Lv3 상태로 10판 플레이 → 도달 웨이브 통계 |
-| `simLab(3, 6, 'smart', '&mod=giants')` | 일일 도전 규칙별 난이도 측정 |
-| `await art.makeStoreArt()` | 앱 아이콘·스플래시·구글 그래픽 이미지 다시 그리기 → `assets/`, `store/` |
-| `await makeStoreShots()` | 스토어 스크린샷 5장 생성 (뷰포트 440×956에서 실행, 언어별 폴더) |
+| 파일 | 역할 |
+| --- | --- |
+| `src/scenes/MenuScene.ts` | 배경 영상, 메인 메뉴, 설정 |
+| `src/scenes/StageScene.ts`, `src/data/stages.ts` | 스테이지 선택과 구성 |
+| `src/scenes/LabScene.ts` | 냄비 성장, 영구 레시피 |
+| `src/scenes/GameScene.ts` | 전투, 레시피 선택, 결과 |
+| `src/game/progression.ts`, `src/game/saveSchema.ts` | 보상·진행도와 저장 마이그레이션 |
+| `src/style.css`, `src/ui/dom.ts` | 반응형 UI와 화면 수명 관리 |
+| `public/art/` | 적용된 컨셉 이미지·스프라이트·영상 |
+| `tests/progression.test.mjs` | 저장 호환·보상·해금·레벨 검사 |
 
-아이콘을 바꾼 뒤에는 `npx @capacitor/assets generate --iconBackgroundColor '#070912' --splashBackgroundColor '#070912'` 로 네이티브 아이콘을 다시 만든다.
+## 네이티브 앱
 
-## 앱 빌드
-```bash
-npm run ios       # 빌드 → iOS 프로젝트 동기화 → Xcode 열기
-npm run android   # 빌드 → Android 프로젝트 동기화 → Android Studio 열기
+```sh
+npm run ios
+npm run android
 ```
-출시 절차는 [RELEASE.md](RELEASE.md) 참고.
+
+웹 빌드와 별도로 Xcode/Android Studio에서 기기 빌드·서명·실기기 확인이 필요합니다. 앱 이름, 아이콘, 스플래시를 심야분식으로 교체했습니다. 기존 `RELEASE.md`와 `store/` 자료에는 이전 이름·스크린샷이 남아 있으므로 출시 전에 갱신해야 합니다. 개인정보처리방침의 개발자 이름과 연락처 자리표시자도 실제 정보로 채워야 합니다.
+
+개발용 `simLab(level, runs, 'smart')` 콘솔 도구는 유지했습니다. 예전 Canvas 전용 스토어 자동 촬영 도구는 새 DOM UI를 담지 못해 노출을 제거했습니다. 새 스크린샷은 전체 페이지를 캡처해야 합니다.
+
+아트 제작 기준과 출처는 [docs/art-direction.md](docs/art-direction.md)를 참고하세요.

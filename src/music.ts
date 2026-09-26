@@ -1,10 +1,10 @@
 import { sfx } from './audio';
 
-// 배경음악도 파일 없이 실시간 합성하는 신스웨이브 루프.
+// 배경음악도 파일 없이 실시간 합성하는 부드러운 야시장 루프.
 // level 0: 메뉴(패드+잔잔한 아르페지오) / 1: 전투(베이스+드럼 추가) / 2: 보스(스네어, 하이햇 강화)
 export type MusicLevel = 0 | 1 | 2;
 
-const BPM = 104;
+const BPM = 88;
 const STEP = 60 / BPM / 4;
 // A단조 진행: Am - F - C - G
 const CHORDS = [
@@ -87,7 +87,7 @@ class Music {
     // 아르페지오
     if (lv > 0 || s % 2 === 0) {
       const n = notes[ARP[s]] + 12;
-      this.voice('square', freq(n), t, STEP * 0.8, lv === 0 ? 0.022 : 0.028, lv === 2 ? 2600 : 1700, true);
+      this.voice('sine', freq(n), t, STEP * 0.8, lv === 0 ? 0.022 : 0.028, lv === 2 ? 2600 : 1700, true);
     }
     // 패드
     if (s === 0 && lv < 2) {
@@ -95,7 +95,7 @@ class Music {
     }
     if (lv >= 1) {
       // 베이스
-      if (s % 2 === 0) this.voice('sawtooth', freq(chord[0] - 24 + (s % 4 === 2 ? 12 : 0)), t, STEP * 1.6, 0.07, 480);
+      if (s % 2 === 0) this.voice('triangle', freq(chord[0] - 24 + (s % 4 === 2 ? 12 : 0)), t, STEP * 1.6, 0.07, 480);
       // 킥
       if (s % 4 === 0) this.kick(t);
       // 하이햇

@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
-import { W, H, OY, CORE_X, CORE_Y, CORE_R, COLOR, setupCamera, hex } from '../config';
-import { SHAPE_R, RING_R, CORE_TEX_R } from './BootScene';
+import { W, H, CORE_X, CORE_Y, CORE_R, COLOR, setupCamera, hex } from '../config';
+import { RING_R, CORE_TEX_R } from './BootScene';
 import { ENEMIES, EnemyKind, SpawnEntry, buildWave, hpMul, speedMul, dmgMul, isBossWave, bossForWave } from '../data/enemies';
 import { Card, CardCtx, Rarity, RARITY, drawCards, CARDS } from '../data/cards';
 import { LAB, buildStats } from '../data/lab';
 import { ABILITIES, Stats } from '../game/stats';
 import { sfx, vibrate } from '../audio';
 import { music } from '../music';
-import { openSettings } from '../ui/settings';
 import { L } from '../i18n';
 import { Modifier, MODIFIERS, todayKey, todayModifier, daySeed, seededRng } from '../data/daily';
-import { save, persist } from '../save';
+import { STAGES, Stage, stageUnlocked, completionStars, potLevel, stageCompletion } from '../data/stages';
+import { mountScreen, bind, artIcon, coin, escapeHtml } from '../ui/dom';
+import { RECIPE_ICONS } from './LabScene';
+import { save, persist, applySettings } from '../save';
 import { txt, panel, button, Button } from '../ui/widgets';
 import { drawBackground } from '../ui/bg';
 
@@ -57,6 +59,12 @@ function compact<T extends { dead: boolean }>(arr: T[]) {
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
+  private stage: Stage | null = null;
+  private won = false;
+  private runSeconds = 0;
+  private earnedXp = 0;
+  private previousLevel = 1;
+  private domOverlay?: ReturnType<typeof mountScreen>;
   private state: State = 'play';
   private stats!: Stats;
   private hp = 0;
@@ -115,8 +123,9 @@ export class GameScene extends Phaser.Scene {
   private rng: () => number = Math.random;
   private dayKey = '';
 
-  init(data: { daily?: boolean }) {
+  init(data: { daily?: boolean; stage?: number }) {
     this.daily = !!data?.daily;
+    this.stage = !this.daily && data?.stage ? STAGES.find(s => s.id === data.stage && stageUnlocked(s.id, save.stages)) ?? STAGES[0] : null;
   }
 
   create() {
@@ -138,6 +147,8 @@ export class GameScene extends Phaser.Scene {
     this.rng = this.daily ? seededRng(daySeed(this.dayKey)) : Math.random;
 
     this.state = 'play';
+    this.time.paused = false;
+    this.won = false; this.runSeconds = 0; this.earnedXp = 0; this.previousLevel = potLevel(save.xp);
     this.stats = buildStats(lab);
     this.mod?.apply?.(this.stats);
     this.hp = this.shownHp = this.stats.maxHp;
@@ -159,8 +170,8 @@ export class GameScene extends Phaser.Scene {
     this.frostRing = this.add.image(CORE_X, CORE_Y, 'ring').setTint(0x7fdbff).setAlpha(0).setDepth(5);
     this.rangeG = this.add.graphics().setDepth(6);
     this.barG = this.add.graphics().setDepth(11);
-    this.core = this.add.image(CORE_X, CORE_Y, 'core').setTint(COLOR.cyan).setScale(CORE_R / CORE_TEX_R).setDepth(20);
-    this.barrel = this.add.image(CORE_X, CORE_Y, 'barrel').setTint(0xbffcff).setScale(CORE_R / CORE_TEX_R).setDepth(21);
+    this.core = this.add.image(CORE_X, CORE_Y, 'pot').setDisplaySize(156, 156).setDepth(20);
+    this.barrel = this.add.image(CORE_X, CORE_Y, 'barrel').setScale(CORE_R / CORE_TEX_R).setDepth(21);
     this.fxG = this.add.graphics().setDepth(26).setBlendMode(Phaser.BlendModes.ADD);
 
     for (let i = 0; i < 48; i++) {
@@ -174,6 +185,7 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onHidden, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(Phaser.Core.Events.HIDDEN, this.onHidden, this);
+      this.domOverlay?.dispose(); this.domOverlay = undefined;
       this.tweens.killAll();
     });
 
@@ -181,43 +193,44 @@ export class GameScene extends Phaser.Scene {
     if (this.mod?.startCard) {
       this.time.delayedCall(400, () => this.showCards('epic', this.mod!.name, L('오늘의 도전: 영웅 카드 하나를 고르세요', "Today's rule: pick an epic card")));
     } else if ((lab.start ?? 0) > 0) {
-      this.time.delayedCall(400, () => this.showCards('rare', L('선행 연구', 'Head Start'), L('출발 전에 하나를 고르세요', 'Pick one before you start')));
+      this.time.delayedCall(400, () => this.showCards('rare', L('미리 손질', 'Prep ahead'), L('출발 전에 하나를 고르세요', 'Pick one before you start')));
     } else {
       this.time.delayedCall(400, () => this.startWave());
     }
     if (this.daily) this.banner(L(`일일 도전 · ${this.mod!.name}`, `Daily · ${this.mod!.name}`), COLOR.yellow, 0.6, 1600, 120);
-    this.time.delayedCall(1800, () => this.tip('intro', L('기지는 가까운 적을 자동으로 공격해요.\n웨이브를 버틸 때마다 카드를 골라 강해지세요!', 'Your base shoots the nearest enemy automatically.\nSurvive each wave and pick a card to grow stronger!')));
+    this.time.delayedCall(1800, () => this.tip('intro', L('냄비는 가까운 손님에게 자동으로 요리해요.\n한 차례 영업이 끝나면 새 레시피를 골라요!', 'Your pot serves the nearest hungry guest automatically.\nAfter each wave, pick a new recipe!')));
   }
 
   // ───────────────────────── 웨이브 흐름 ─────────────────────────
 
   private startWave() {
     this.wave++;
-    const { entries } = buildWave(this.wave, this.rng, this.mod?.count ?? 1);
+    const { entries } = buildWave(this.wave + (this.stage?.offset ?? 0), this.rng, (this.mod?.count ?? 1) * (this.stage ? 1 + (this.stage.id - 1) * 0.05 : 1));
     this.queue = entries;
     this.waveTime = 0;
     this.waveTotal = entries.length;
     this.spawned = 0;
     this.state = 'play';
     const boss = isBossWave(this.wave);
-    this.banner(boss ? `BOSS WAVE ${this.wave}` : `WAVE ${this.wave}`, boss ? COLOR.pink : COLOR.cyan);
-    if (boss) { const b = ENEMIES[bossForWave(this.wave)]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
+    this.banner(boss ? L('큰 손님 등장!', 'A HUNGRY GUEST!') : L(`${this.wave}번째 영업`, `WAVE ${this.wave}`), boss ? COLOR.pink : COLOR.cyan);
+    if (boss) { const b = ENEMIES[bossForWave(this.wave + (this.stage?.offset ?? 0))]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
     if (boss) { sfx.boss(); this.cameras.main.flash(250, 120, 0, 40); } else sfx.waveStart();
     if (!this.bot) music.play(boss ? 2 : 1);
     if (this.wave === 3) this.time.delayedCall(1500, () => this.tip('speed', L('너무 느긋하다면 오른쪽 위 x2 버튼으로\n게임 속도를 올릴 수 있어요.', 'Too slow? Tap the x2 button at the top right\nto speed up the game.')));
-    if (boss) this.time.delayedCall(2200, () => this.tip('boss', L('보스는 기지에 붙어서 계속 공격해요.\n처치하면 영웅 카드 확정 + 체력 회복!', 'Bosses keep attacking once they reach you.\nDefeat one for a guaranteed epic card + heal!')));
+    if (boss) this.time.delayedCall(2200, () => this.tip('boss', L('보스는 냄비에 붙어서 계속 공격해요.\n처치하면 영웅 카드 확정 + 체력 회복!', 'Bosses keep attacking once they reach you.\nDefeat one for a guaranteed epic card + heal!')));
   }
 
   private waveCleared() {
     this.state = 'between';
     this.wavesCleared = this.wave;
     sfx.waveClear();
+    if (this.stage && this.wavesCleared >= this.stage.waves) { this.gameOver(true); return; }
     this.heal(this.stats.maxHp * 0.25);
-    this.banner('CLEAR', COLOR.green, 0.8, 300);
+    this.banner(L('맛있게 드세요!', 'SERVED!'), COLOR.green, 0.8, 300);
     const boss = isBossWave(this.wave);
     if (this.bot) { this.showCards(boss ? 'epic' : undefined, '', ''); return; }
     this.time.delayedCall(800, () => {
-      if (this.state === 'between') this.showCards(boss ? 'epic' : undefined, L(`웨이브 ${this.wave} 클리어!`, `Wave ${this.wave} cleared!`), boss ? L('보스 보상: 영웅 등급 이상 확정', 'Boss reward: epic or better guaranteed') : L('업그레이드를 하나 고르세요', 'Choose an upgrade'));
+      if (this.state === 'between') this.showCards(boss ? 'epic' : undefined, L(`새 레시피 발견!`, `A new recipe!`), boss ? L('보스 보상: 영웅 등급 이상 확정', 'Boss reward: epic or better guaranteed') : L('이번 영업에 쓸 비법을 골라주세요', 'Choose a recipe for this run'));
     });
   }
 
@@ -245,6 +258,7 @@ export class GameScene extends Phaser.Scene {
     const st = this.stats;
     if (this.state === 'play') {
       this.waveTime += dt;
+      this.runSeconds += dt;
       while (this.queue.length && this.queue[0].t <= this.waveTime) {
         this.spawnEnemy(this.queue.shift()!.kind);
         this.spawned++;
@@ -295,7 +309,7 @@ export class GameScene extends Phaser.Scene {
     compact(this.missiles);
     compact(this.ebullets);
 
-    if (this.state === 'play' && !this.queue.length && !this.enemies.length) this.waveCleared();
+    if (this.state === 'play' && this.wave > 0 && !this.queue.length && !this.enemies.length) this.waveCleared();
   }
 
   // ───────────────────────── 적 ─────────────────────────
@@ -312,16 +326,16 @@ export class GameScene extends Phaser.Scene {
       else { p -= pw; x = -m; y = p - m; }
     }
     const boss = !!d.boss;
-    const hp = d.hp * hpMul(this.wave) * (boss ? 1 + 0.15 * (this.wave / 5 - 1) : 1) * (this.mod?.enemyHp ?? 1);
-    const s = this.img(d.tex, boss ? 9 : 10).setTint(d.color).setScale(d.r / SHAPE_R).setPosition(x, y);
+    const hp = d.hp * hpMul(this.wave + (this.stage?.offset ?? 0)) * (boss ? 1 + 0.15 * (this.wave / 5 - 1) : 1) * (this.mod?.enemyHp ?? 1);
+    const s = this.img(d.tex, boss ? 9 : 10).clearTint().setScale(d.r * 3.4 / 320).setPosition(x, y);
     const e: Enemy = {
       s, kind, x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       hp, maxHp: hp,
-      speed: d.speed * speedMul(this.wave) * (0.9 + Math.random() * 0.2) * (this.mod?.enemySpeed ?? 1),
+      speed: d.speed * speedMul(this.wave + (this.stage?.offset ?? 0)) * (0.9 + Math.random() * 0.2) * (this.mod?.enemySpeed ?? 1),
       r: d.r, dmg: d.dmg, color: d.color, boss, dead: false,
       flash: 0, flashing: false, poisonDps: 0, poisonT: 0, poisonFx: 0,
       bladeCd: 0, shootT: 1 + Math.random() * 1.5, attackT: 0,
-      spin: d.spin * (Math.random() < 0.5 ? -1 : 1),
+      spin: 0,
     };
     if (kind === 'blinker') s.setAlpha(0.8);
     this.enemies.push(e);
@@ -400,7 +414,7 @@ export class GameScene extends Phaser.Scene {
         e.flash -= dt;
         if (!e.flashing) { if (e.boss) e.s.setAlpha(0.65); else e.s.setTintFill(0xffffff); e.flashing = true; }
       } else if (e.flashing) {
-        if (e.boss) e.s.setAlpha(1); else e.s.setTint(e.color);
+        if (e.boss) e.s.setAlpha(1); else e.s.clearTint();
         e.flashing = false;
       }
     }
@@ -520,7 +534,7 @@ export class GameScene extends Phaser.Scene {
       if (i >= targets.length) a += (Math.floor(i / targets.length) % 2 ? 1 : -1) * 0.09 * Math.ceil(i / targets.length);
       const crit = Math.random() < st.critChance;
       const x = CORE_X + Math.cos(a) * (CORE_R + 6), y = CORE_Y + Math.sin(a) * (CORE_R + 6);
-      const s = this.img('bullet', 15).setTint(crit ? COLOR.yellow : 0xbffcff).setScale(crit ? 0.9 : 0.65).setPosition(x, y).setBlendMode(Phaser.BlendModes.ADD);
+      const s = this.img('bullet', 15).setTint(crit ? COLOR.yellow : COLOR.orange).setScale(crit ? 0.9 : 0.65).setPosition(x, y).setBlendMode(Phaser.BlendModes.ADD);
       this.bullets.push({
         s, x, y, vx: Math.cos(a) * st.projSpeed, vy: Math.sin(a) * st.projSpeed,
         dmg: st.damage * (crit ? st.critMult : 1), crit, pierce: st.pierce, hit: [], life: 1.2, dead: false,
@@ -767,11 +781,11 @@ export class GameScene extends Phaser.Scene {
   private renderFrame(dt: number) {
     const st = this.stats;
     // 기지
-    this.core.rotation += dt * 0.4;
+    this.core.rotation = 0;
     this.barrel.setScale(Phaser.Math.Linear(this.barrel.scale, CORE_R / CORE_TEX_R, Math.min(1, dt * 12)));
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
     const tint = this.hurtFlash > 0 ? COLOR.red : COLOR.cyan;
-    this.core.setTint(tint);
+    if (this.hurtFlash > 0) this.core.setTint(0xffaa88); else this.core.clearTint();
     this.coreGlow.setTint(tint).setAlpha(0.3 + Math.sin(this.time.now / 400) * 0.06);
     if (st.lv.frost) this.frostRing.setAlpha(0.3 + Math.sin(this.time.now / 300) * 0.08);
 
@@ -841,9 +855,9 @@ export class GameScene extends Phaser.Scene {
   private updateHud(dt: number) {
     const st = this.stats;
     this.shownHp = Phaser.Math.Linear(this.shownHp, this.hp, Math.min(1, dt * 10));
-    this.hudWave.setText(`WAVE ${Math.max(1, this.wave)}`);
+    this.hudWave.setText(L(`${Math.max(1, this.wave)}번째 영업`, `WAVE ${Math.max(1, this.wave)}`));
     const left = this.queue.length + this.enemies.length;
-    this.hudSub.setText((this.daily ? `${L('일일', 'Daily')} · ` : '') + (this.state === 'play' ? L(`남은 적 ${left}`, `Enemies ${left}`) : ''));
+    this.hudSub.setText((this.daily ? `${L('일일', 'Daily')} · ` : '') + (this.state === 'play' ? L(`손님 ${left}${this.stage ? ' · ' + this.stage.waves + '차까지' : ''}`, `Guests ${left}${this.stage ? ' · / ' + this.stage.waves : ''}`) : ''));
 
     const g = this.hudG;
     g.clear();
@@ -864,7 +878,7 @@ export class GameScene extends Phaser.Scene {
     const st = this.stats;
     // 사거리 표시
     this.rangeG.clear();
-    this.rangeG.lineStyle(2, COLOR.cyan, 0.12).strokeCircle(CORE_X, CORE_Y, st.range);
+    this.rangeG.lineStyle(2, COLOR.cyan, 0.25).strokeCircle(CORE_X, CORE_Y, st.range);
     // 냉기장
     if (st.lv.frost) {
       this.frostRing.setScale(st.frostRadius / RING_R).setAlpha(0.35);
@@ -923,71 +937,19 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.78).setInteractive();
-    const t1 = txt(this, W / 2, 250 + OY, title, 46, { color: COLOR.cyan, glow: true });
-    const t2 = txt(this, W / 2, 310 + OY, subtitle, 22, { color: COLOR.gray, bold: false });
-    o.add([dim, t1, t2]);
-
-    let accept = false;
-    this.time.delayedCall(350, () => { accept = true; });
-
-    cards.forEach((card, i) => {
-      const y = 480 + OY + i * 215;
-      const c = this.cardView(card, y, () => {
-        if (!accept) return;
-        accept = false;
-        this.tweens.add({ targets: c, scale: 1.06, duration: 120, yoyo: true });
-        o.each((ch: Phaser.GameObjects.GameObject) => {
-          if (ch !== c && ch !== dim) this.tweens.add({ targets: ch, alpha: 0, duration: 200 });
-        });
-        this.time.delayedCall(260, () => this.choose(card));
-      });
-      o.add(c);
-      c.setAlpha(0).setScale(0.85);
-      this.tweens.add({ targets: c, alpha: 1, scale: 1, duration: 260, delay: 80 + i * 90, ease: 'Back.Out' });
-    });
-
-    if (this.rerollsLeft > 0) {
-      const rb = button(this, W / 2, 1150 + OY, 320, 76, L(`새로고침 (${this.rerollsLeft})`, `Reroll (${this.rerollsLeft})`), COLOR.gray, () => {
-        if (!accept) return;
-        this.rerollsLeft--;
-        this.closeOverlay();
-        this.showCards(minRarity, title, subtitle);
-      }, 26);
-      o.add(rb);
-    }
+    const icons: Record<string, string> = { ...RECIPE_ICONS, multi: '🥢', pierce: '🥢', critdmg: '🌶', lifesteal: '♡', splash: '🍅', frost: '❄', poison: '🌿', chain: '✦', blades: '🥢', missiles: '🥟', nova: '◉', execute: '✦', overdrive: '🔥', barrage: '🥢', fortress: '🍲', glass: '🌶', repair: '🥣' };
+    const view = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${L('오늘의 비밀 레시피', 'TONIGHT’S SECRET RECIPE')}</p><h1>${escapeHtml(title || L('새 레시피 발견!', 'A new recipe!'))}</h1><p class="subtitle">${escapeHtml(subtitle)}</p><span class="run-level">${L('영업', 'RUN')} Lv. ${Math.max(1, this.wave)} → ${Math.max(1, this.wave) + 1}</span><div class="recipe-choices">${cards.map((card, i) => `<button class="recipe-choice" data-card="${i}" aria-pressed="false"><span class="choice-emoji" aria-hidden="true">${icons[card.id] ?? '🥣'}</span><div><span class="rarity ${card.rarity}">${RARITY[card.rarity].name}</span><h3>${escapeHtml(card.name)}</h3><p>${escapeHtml(card.desc(this.stats))}</p></div><span class="selection-dot" aria-hidden="true">○</span></button>`).join('')}</div><button class="reroll" data-action="reroll" ${this.rerollsLeft ? '' : 'disabled'}>↻ ${L('다시 고르기', 'New recipes')} · ${this.rerollsLeft}</button><button class="primary" data-action="confirm" disabled>${L('이 레시피로!', 'Cook this recipe!')}</button><p class="overlay-note">${L('선택한 효과는 이번 영업에만 적용돼요', 'These effects last for this run only')}</p></section>`, 'game-overlay');
+    this.domOverlay = view;
+    let selected: Card | undefined;
+    let accepted = false;
+    view.root.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b => b.addEventListener('click', () => {
+      selected = cards[Number(b.dataset.card)];
+      view.root.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(other => { const on = other === b; other.setAttribute('aria-pressed', String(on)); other.querySelector('.selection-dot')!.textContent = on ? '✓' : '○'; });
+      view.root.querySelector<HTMLButtonElement>('[data-action="confirm"]')!.disabled = false;
+    }));
+    bind(view.root, 'confirm', () => { if (!selected || accepted) return; accepted = true; this.choose(selected); });
+    bind(view.root, 'reroll', () => { if (!this.rerollsLeft || accepted) return; this.rerollsLeft--; this.closeOverlay(); this.showCards(minRarity, title, subtitle); });
     sfx.pick();
-  }
-
-  private cardView(card: Card, y: number, onPick: () => void) {
-    const st = this.stats;
-    const col = RARITY[card.rarity].color;
-    const w = 640, h = 190;
-    const c = this.add.container(W / 2, y);
-    if (card.rarity === 'epic' || card.rarity === 'legendary') {
-      const glow = this.add.image(0, 0, 'glow').setTint(col).setBlendMode(Phaser.BlendModes.ADD).setScale(3.2, 1.2).setAlpha(0.18);
-      c.add(glow);
-      this.tweens.add({ targets: glow, alpha: 0.32, duration: 700, yoyo: true, repeat: -1 });
-    }
-    const g = this.add.graphics();
-    panel(g, 0, 0, w, h, col, 0x0d1224, 0.97, 20, card.rarity === 'common' ? 2 : 3);
-    const iconBg = this.add.image(-236, 0, 'glow').setTint(col).setAlpha(0.35).setScale(0.8).setBlendMode(Phaser.BlendModes.ADD);
-    const icon = this.add.image(-236, 0, card.icon).setTint(col).setScale(iconScale(card.icon, 72));
-    const name = txt(this, -150, -44, card.name, 34, { align: 'left', color: 0xffffff });
-    const tag = txt(this, w / 2 - 24, -62, RARITY[card.rarity].name, 20, { align: 'right', color: col });
-    const desc = txt(this, -150, 30, card.desc(st), 23, { align: 'left', color: 0xc7cde0, bold: false, lineSpacing: 6 });
-    c.add([g, iconBg, icon, name, tag, desc]);
-    if (card.ability) {
-      const cur = st.lv[card.ability];
-      const lvText = cur ? `Lv.${cur} → ${cur + 1}` : 'NEW';
-      c.add(txt(this, w / 2 - 24, 62, lvText, 20, { align: 'right', color: cur ? COLOR.gray : COLOR.green }));
-    }
-    const zone = this.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
-    zone.on('pointerup', onPick);
-    c.add(zone);
-    return c;
   }
 
   private choose(card: Card) {
@@ -999,6 +961,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private closeOverlay() {
+    this.domOverlay?.dispose();
+    this.domOverlay = undefined;
     this.overlay?.destroy();
     this.overlay = undefined;
   }
@@ -1014,28 +978,12 @@ export class GameScene extends Phaser.Scene {
     if (this.state !== 'play' && this.state !== 'between') return;
     const prev = this.state;
     this.state = 'paused';
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.8).setInteractive();
-    const g = this.add.graphics();
-    panel(g, W / 2, 600 + OY, 560, 700, COLOR.cyan);
-    const st = this.stats;
-    const lines = [
-      `${L('공격력', 'Damage')}  ${Math.round(st.damage)}`,
-      `${L('공격 속도', 'Attack speed')}  ${st.fireRate.toFixed(2)}/s`,
-      `${L('사거리', 'Range')}  ${Math.round(st.range)}`,
-      `${L('발사체', 'Projectiles')}  ${st.multishot}   ${L('관통', 'Pierce')}  ${st.pierce}`,
-      `${L('치명타', 'Crit')}  ${Math.round(st.critChance * 100)}% × ${st.critMult.toFixed(1)}`,
-      `${L('재생', 'Regen')}  ${st.regen.toFixed(1)}/s   ${L('피해 감소', 'Armor')}  ${Math.round(Math.min(0.75, st.dmgReduce) * 100)}%`,
-    ].join('\n');
-    o.add([
-      dim, g,
-      txt(this, W / 2, 320 + OY, L('일시정지', 'PAUSED'), 48, { color: COLOR.cyan, glow: true }),
-      txt(this, W / 2, 500 + OY, lines, 24, { color: 0xc7cde0, bold: false, lineSpacing: 12 }),
-      button(this, W / 2, 710 + OY, 400, 86, L('계속하기', 'Resume'), COLOR.cyan, () => { this.closeOverlay(); this.state = prev; }),
-      button(this, W / 2, 810 + OY, 400, 72, L('설정', 'Settings'), COLOR.white, () => openSettings(this), 26),
-      button(this, W / 2, 900 + OY, 400, 72, L('포기하기', 'Give up'), COLOR.pink, () => { this.closeOverlay(); this.state = prev; this.hp = 0; this.gameOver(); }, 26),
-    ]);
+    this.time.paused = true;
+    const view = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${L('잠깐 쉬어가요', 'A LITTLE BREAK')}</p><h1>${L('잠시 영업 준비 중', 'Back in a moment')}</h1><p class="subtitle">${L('냄비가 식기 전에 돌아오세요.', 'Your warm little pot will be waiting.')}</p>${artIcon('pot', 'result-pot')}<div class="receipt"><div>${L('매운맛', 'Damage')}<b>${Math.round(this.stats.damage)}</b></div><div>${L('손놀림', 'Attack speed')}<b>${this.stats.fireRate.toFixed(1)}/s</b></div><div>${L('꼬치 수', 'Projectiles')}<b>${this.stats.multishot}</b></div></div><div class="result-buttons"><button class="primary" data-action="resume">${L('계속 영업하기', 'Keep cooking')}</button><button class="paper-button" data-action="sound">${L('효과음', 'Sound effects')} · ${save.sound ? 'ON' : 'OFF'}</button><button class="paper-button" data-action="music">${L('배경음악', 'Music')} · ${save.music ? 'ON' : 'OFF'}</button><button class="text-button" data-action="giveup">${L('오늘은 여기까지', 'Close for tonight')}</button></div></section>`, 'game-overlay');
+    this.domOverlay = view;
+    bind(view.root, 'resume', () => { this.closeOverlay(); this.time.paused = false; this.state = prev; });
+    for (const key of ['sound', 'music'] as const) bind(view.root, key, () => { save[key] = !save[key]; persist(); applySettings(); view.root.querySelector(`[data-action="${key}"]`)!.textContent = `${key === 'sound' ? L('효과음', 'Sound effects') : L('배경음악', 'Music')} · ${save[key] ? 'ON' : 'OFF'}`; });
+    bind(view.root, 'giveup', () => { this.closeOverlay(); this.time.paused = false; this.state = prev; this.hp = 0; this.gameOver(); });
   }
 
   // 처음 한 번만 보여주는 도움말
@@ -1046,25 +994,28 @@ export class GameScene extends Phaser.Scene {
     const y = H - 240;
     const c = this.add.container(W / 2, y).setDepth(70).setAlpha(0);
     const g = this.add.graphics();
-    panel(g, 0, 0, 620, 110, COLOR.yellow, 0x0d1224, 0.92, 16, 2);
+    panel(g, 0, 0, 620, 110, COLOR.yellow, 0x392b23, 0.92, 16, 2);
     c.add([g, txt(this, 0, 0, text, 23, { color: 0xffffff, bold: false, lineSpacing: 8 })]);
     this.tweens.add({ targets: c, alpha: 1, y: y - 10, duration: 300 });
     this.tweens.add({ targets: c, alpha: 0, delay: 5200, duration: 400, onComplete: () => c.destroy() });
   }
 
-  private gameOver() {
+  private gameOver(victory = false) {
     if (this.state === 'over') return;
     this.state = 'over';
+    this.won = victory;
     this.closeOverlay();
     if (!this.bot) music.play(0);
-    sfx.lose();
-    vibrate(250);
+    if (victory) sfx.waveClear(); else sfx.lose();
+    vibrate(victory ? 70 : 250);
     this.burst(CORE_X, CORE_Y, COLOR.cyan, 80, 'big');
     this.burst(CORE_X, CORE_Y, 0xffffff, 40, 'big');
     this.ringFx(CORE_X, CORE_Y, 420, COLOR.cyan, 900);
-    this.cameras.main.shake(600, 0.02);
-    this.cameras.main.flash(300, 255, 255, 255);
-    this.core.setVisible(false); this.barrel.setVisible(false); this.coreGlow.setVisible(false);
+    if (!victory) {
+      this.cameras.main.shake(600, 0.02);
+      this.cameras.main.flash(300, 255, 255, 255);
+    }
+    this.core.setVisible(victory); this.barrel.setVisible(victory); this.coreGlow.setVisible(victory);
     for (const b of this.blades) b.setVisible(false);
 
     let gems = 0;
@@ -1090,6 +1041,13 @@ export class GameScene extends Phaser.Scene {
       newBest = reached > save.best;
       if (newBest) save.best = reached;
     }
+    if (victory && this.stage) {
+      const result = stageCompletion(save.stages[this.stage.id] ?? 0, this.hp, this.stats.maxHp, this.stage.reward);
+      gems += result.reward;
+      save.stages[this.stage.id] = result.stars;
+    }
+    this.earnedXp = this.wavesCleared * 12 + this.kills * 2;
+    save.xp += this.earnedXp;
     save.gems += gems;
     save.runs++;
     persist();
@@ -1098,34 +1056,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showResults(reached: number, gems: number, newBest: boolean) {
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.82).setInteractive();
-    const g = this.add.graphics();
-    panel(g, W / 2, 610 + OY, 580, 760, COLOR.pink);
-    const gem = this.add.image(W / 2 - 90, 610 + OY, 'e_diamond').setTint(COLOR.cyan).setScale(0.45);
-    const items: Phaser.GameObjects.GameObject[] = [
-      dim, g,
-      txt(this, W / 2, 310 + OY, this.daily ? L(`일일 도전 · ${this.mod!.name}`, `Daily · ${this.mod!.name}`) : L('기지 파괴', 'BASE DESTROYED'), this.daily ? 40 : 56, { color: this.daily ? COLOR.yellow : COLOR.pink, glow: true }),
-      txt(this, W / 2, 420 + OY, L(`웨이브 ${reached}`, `Wave ${reached}`), 64, { color: 0xffffff }),
-      txt(this, W / 2, 490 + OY, L(`처치 ${this.kills}`, `Kills ${this.kills}`), 26, { color: COLOR.gray, bold: false }),
-      gem,
-      txt(this, W / 2 - 60, 610 + OY, `+${gems}`, 44, { color: COLOR.cyan, align: 'left', glow: true }),
-      button(this, W / 2, 760 + OY, 440, 96, L('다시 도전', 'Retry'), COLOR.cyan, () => this.scene.restart({ daily: this.daily }), 34),
-      button(this, W / 2 - 115, 880 + OY, 210, 80, L('연구소', 'Lab'), COLOR.purple, () => this.scene.start('Lab'), 26),
-      button(this, W / 2 + 115, 880 + OY, 210, 80, L('메인', 'Menu'), COLOR.white, () => this.scene.start('Menu'), 26),
-    ];
-    if (!save.tips.lab) {
-      save.tips.lab = true; persist();
-      items.push(txt(this, W / 2, 680 + OY, L('보석으로 연구소에서 영구 강화할 수 있어요!', 'Spend gems in the Lab for permanent upgrades!'), 21, { color: COLOR.purple, bold: false }));
-    }
-    if (newBest) {
-      const nb = txt(this, W / 2, 545 + OY, this.daily ? L('오늘의 최고 기록!', "Today's best!") : L('최고 기록 갱신!', 'New record!'), 26, { color: COLOR.yellow, glow: true });
-      this.tweens.add({ targets: nb, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
-      items.push(nb);
-    }
-    o.add(items);
-    o.setAlpha(0);
-    this.tweens.add({ targets: o, alpha: 1, duration: 300 });
+    const stars = this.won ? completionStars(this.hp, this.stats.maxHp) : 0;
+    const nextStage = this.stage && this.stage.id < STAGES.length ? this.stage.id + 1 : null;
+    const minutes = Math.floor(this.runSeconds / 60), seconds = Math.floor(this.runSeconds % 60);
+    this.domOverlay = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${this.stage ? `01–0${this.stage.id} · ${this.stage.name}` : L('오늘의 특별 영업', 'TONIGHT’S SPECIAL')}</p>${artIcon('pot', 'result-pot')}<div class="result-stars">${stars ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '☾'}</div><h1>${this.won ? L('오늘도 완판!', 'Sold out tonight!') : L('오늘은 여기까지', 'A good night’s work')}</h1><p class="subtitle">${this.won ? L('골목에 따뜻한 한 그릇을 전했어요.', 'A little warmth for everyone in the alley.') : L('모은 엽전으로 더 든든한 냄비를 준비해요.', 'Use your coins to prepare for the next night.')}${newBest ? ' ' + L('최고 기록 갱신!', 'New best!') : ''}</p><div class="receipt"><div>${L('버틴 웨이브', 'Waves served')}<b>${this.wavesCleared}${this.stage ? ' / ' + this.stage.waves : ' / ' + reached}</b></div><div>${L('대접한 손님', 'Guests served')}<b>${this.kills}</b></div><div>${L('영업 시간', 'Time open')}<b>${minutes}:${String(seconds).padStart(2, '0')}</b></div></div><div class="reward-row"><div>${coin(gems)}<small>${L('획득한 엽전', 'COINS EARNED')}</small></div><div>✦ ${this.earnedXp}<small>${L('영업 경험치', 'EXPERIENCE')}</small></div></div><div class="result-level">${L('냄비', 'POT')} Lv. ${this.previousLevel}${potLevel(save.xp) > this.previousLevel ? ' → ' + potLevel(save.xp) : ''}<div class="xp-track"><span style="width:${save.xp % 200 / 2}%"></span></div><small>${save.xp % 200} / 200 XP</small></div><div class="result-buttons"><button class="primary" data-action="continue">${this.won ? nextStage ? L('다음 골목으로', 'Next alley') : L('모든 골목 완판! 지도 보기', 'All alleys served! View map') : L('다시 영업하기', 'Try another night')} <span>→</span></button><div class="button-pair"><button class="paper-button" data-action="lab">${L('비밀 레시피', 'Recipes')}</button><button class="paper-button" data-action="home">${L('가게로 돌아가기', 'Back to shop')}</button></div></div></section>`, 'game-overlay results-overlay');
+    const root = this.domOverlay.root;
+    bind(root, 'continue', () => { if (this.won) this.scene.start('Stages'); else this.scene.restart({ daily: this.daily, stage: this.stage?.id }); });
+    bind(root, 'lab', () => this.scene.start('Lab'));
+    bind(root, 'home', () => this.scene.start('Menu'));
   }
 }

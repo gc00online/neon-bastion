@@ -1,8 +1,10 @@
+import './style.css';
 import Phaser from 'phaser';
 import { W, H, RES, COLOR } from './config';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
+import { StageScene } from './scenes/StageScene';
 import { LabScene } from './scenes/LabScene';
 import { setupNative } from './native';
 import { sfx } from './audio';
@@ -19,7 +21,7 @@ const game = new Phaser.Game({
   },
   render: { antialias: true, powerPreference: 'high-performance' },
   input: { activePointers: 2 },
-  scene: [BootScene, MenuScene, GameScene, LabScene],
+  scene: [BootScene, MenuScene, GameScene, LabScene, StageScene],
 });
 
 setupNative(game);

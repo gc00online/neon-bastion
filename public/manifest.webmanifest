@@ -1,11 +1,11 @@
 {
-  "name": "Neon Bastion",
-  "short_name": "Neon Bastion",
+  "name": "심야분식",
+  "short_name": "심야분식",
   "start_url": "./",
   "display": "fullscreen",
   "orientation": "portrait",
-  "background_color": "#070912",
-  "theme_color": "#070912",
+  "background_color": "#191822",
+  "theme_color": "#191822",
   "icons": [
     { "src": "icon-192.png", "type": "image/png", "sizes": "192x192" },
     { "src": "icon-512.png", "type": "image/png", "sizes": "512x512" }

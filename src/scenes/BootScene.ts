@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { asset } from '../ui/dom';
 import { applySettings, loadSave } from '../save';
 
 // 모든 그래픽을 코드로 생성한다(네온 글로우 포함). 흰색으로 그려두고 게임에서 색을 입힌다.
@@ -11,7 +12,13 @@ type Ctx = CanvasRenderingContext2D;
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
 
+  preload() {
+    this.load.image('arena', asset('arena.webp'));
+    for (const key of ['pot', 'rice', 'dumpling', 'spirit']) this.load.image(key, asset(`${key}.png`));
+  }
+
   create() {
+    document.getElementById('loading')?.remove();
     const poly = (sides: number, rot = -Math.PI / 2) => (ctx: Ctx, s: number) => {
       ctx.beginPath();
       for (let i = 0; i < sides; i++) {
@@ -136,10 +143,13 @@ export class BootScene extends Phaser.Scene {
 
     this.tex('barrel', 192, 192, (ctx, s) => {
       const c = s / 2;
-      ctx.shadowColor = '#fff';
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(c - 9, c - 92, 18, 70);
+      ctx.strokeStyle = '#754824'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(c, c + 12); ctx.lineTo(c, 4); ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i % 2 ? '#e9b759' : '#f6cc79';
+        ctx.beginPath(); ctx.roundRect(c - 15, 14 + i * 19, 30, 15, 5); ctx.fill();
+        ctx.fillStyle = '#af7136'; ctx.fillRect(c - 8, 19 + i * 19, 3, 3);
+      }
     });
 
     this.tex('blade', 96, 96, (ctx, s) => {

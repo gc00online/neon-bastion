@@ -40,36 +40,36 @@ const ability = (id: Ability, name: string, rarity: Rarity, icon: string, desc: 
 
 export const CARDS: Card[] = [
   // 일반
-  { id: 'dmg', name: L('화력 강화', 'Firepower'), rarity: 'common', icon: 'e_circle', desc: () => L('공격력 +20%', 'Damage +20%'), apply: c => { c.stats.dmgPct += 0.2; } },
-  { id: 'rate', name: L('속사', 'Rapid Fire'), rarity: 'common', icon: 'e_tri', desc: () => L('공격 속도 +15%', 'Attack speed +15%'), apply: c => { c.stats.ratePct += 0.15; } },
-  { id: 'range', name: L('망원 조준경', 'Long Scope'), rarity: 'common', icon: 'ring', desc: () => L('사거리 +10%', 'Range +10%'), apply: c => { c.stats.rangePct += 0.1; } },
-  { id: 'hp', name: L('장갑 보강', 'Plating'), rarity: 'common', icon: 'e_square', desc: () => L('최대 체력 +20\n체력 20 회복', 'Max HP +20\nHeal 20 HP'), apply: c => { c.stats.maxHp += 20; c.heal(20); } },
-  { id: 'regen', name: L('나노 수리', 'Nano Repair'), rarity: 'common', icon: 'e_hex', desc: () => L('초당 체력 재생 +1', 'HP regen +1/s'), apply: c => { c.stats.regen += 1; } },
-  { id: 'crit', name: L('약점 분석', 'Weak Spot'), rarity: 'common', icon: 'e_diamond', desc: () => L('치명타 확률 +6%', 'Crit chance +6%'), apply: c => { c.stats.critChance += 0.06; }, can: c => c.stats.critChance < 0.7 },
-  { id: 'armor', name: L('방어막 코팅', 'Shield Coating'), rarity: 'common', icon: 'e_hex', desc: () => L('받는 피해 -6%', 'Damage taken -6%'), apply: c => { c.stats.dmgReduce += 0.06; }, can: c => c.stats.dmgReduce < 0.6 },
-  { id: 'repair', name: L('긴급 수리', 'Emergency Fix'), rarity: 'common', icon: 'core', desc: () => L('체력 50% 회복', 'Heal 50% HP'), apply: c => { c.heal(c.stats.maxHp * 0.5); }, can: c => c.hp < c.stats.maxHp * 0.8 },
+  { id: 'dmg', name: L('매운맛 추가', 'Extra spice'), rarity: 'common', icon: 'e_circle', desc: () => L('공격력 +20%', 'Damage +20%'), apply: c => { c.stats.dmgPct += 0.2; } },
+  { id: 'rate', name: L('빠른 손놀림', 'Quick hands'), rarity: 'common', icon: 'e_tri', desc: () => L('공격 속도 +15%', 'Attack speed +15%'), apply: c => { c.stats.ratePct += 0.15; } },
+  { id: 'range', name: L('긴 국자', 'Long ladle'), rarity: 'common', icon: 'ring', desc: () => L('사거리 +10%', 'Range +10%'), apply: c => { c.stats.rangePct += 0.1; } },
+  { id: 'hp', name: L('든든한 냄비', 'Hearty pot'), rarity: 'common', icon: 'e_square', desc: () => L('최대 체력 +20\n체력 20 회복', 'Max HP +20\nHeal 20 HP'), apply: c => { c.stats.maxHp += 20; c.heal(20); } },
+  { id: 'regen', name: L('따끈한 국물', 'Warm broth'), rarity: 'common', icon: 'e_hex', desc: () => L('초당 체력 재생 +1', 'HP regen +1/s'), apply: c => { c.stats.regen += 1; } },
+  { id: 'crit', name: L('비밀 양념', 'Secret seasoning'), rarity: 'common', icon: 'e_diamond', desc: () => L('치명타 확률 +6%', 'Crit chance +6%'), apply: c => { c.stats.critChance += 0.06; }, can: c => c.stats.critChance < 0.7 },
+  { id: 'armor', name: L('단단한 뚜껑', 'Sturdy lid'), rarity: 'common', icon: 'e_hex', desc: () => L('받는 피해 -6%', 'Damage taken -6%'), apply: c => { c.stats.dmgReduce += 0.06; }, can: c => c.stats.dmgReduce < 0.6 },
+  { id: 'repair', name: L('한 그릇 더', 'One more bowl'), rarity: 'common', icon: 'core', desc: () => L('체력 50% 회복', 'Heal 50% HP'), apply: c => { c.heal(c.stats.maxHp * 0.5); }, can: c => c.hp < c.stats.maxHp * 0.8 },
 
   // 희귀
-  { id: 'multi', name: L('분열 사격', 'Split Shot'), rarity: 'rare', icon: 'e_tri', desc: s => L(`발사체 +1 (${s.multishot} → ${s.multishot + 1})`, `Projectiles +1 (${s.multishot} → ${s.multishot + 1})`), apply: c => { c.stats.multishot += 1; }, can: c => c.stats.multishot < 7 },
-  { id: 'pierce', name: L('관통탄', 'Piercing Rounds'), rarity: 'rare', icon: 'missile', desc: s => L(`탄환이 적 ${s.pierce + 1}명 더 관통`, `Bullets pierce ${s.pierce + 1} more`), apply: c => { c.stats.pierce += 1; }, can: c => c.stats.pierce < 5 },
-  { id: 'critdmg', name: L('치명적 일격', 'Lethal Strike'), rarity: 'rare', icon: 'e_diamond', desc: s => L(`치명타 피해 ${pct(s.critMult)} → ${pct(s.critMult + 0.5)}`, `Crit damage ${pct(s.critMult)} → ${pct(s.critMult + 0.5)}`), apply: c => { c.stats.critMult += 0.5; } },
-  { id: 'lifesteal', name: L('흡수 회로', 'Siphon Circuit'), rarity: 'rare', icon: 'e_circle', desc: s => L(`적 처치 시 체력 +${s.lifesteal + 1}`, `+${s.lifesteal + 1} HP per kill`), apply: c => { c.stats.lifesteal += 1; }, can: c => c.stats.lifesteal < 5 },
-  ability('splash', L('폭발탄', 'Explosive Rounds'), 'rare', 'ring', lv => L(`명중 시 주변 폭발\n범위 ${50 + 12 * lv}, 피해 ${pct(0.35 + 0.1 * lv)}`, `Hits explode\nRadius ${50 + 12 * lv}, ${pct(0.35 + 0.1 * lv)} damage`)),
-  ability('frost', L('냉기장', 'Frost Field'), 'rare', 'e_hex', lv => L(`주변 적 감속 ${pct(Math.min(0.5, 0.15 + 0.07 * lv))}\n범위 ${140 + 25 * lv}`, `Slows nearby enemies ${pct(Math.min(0.5, 0.15 + 0.07 * lv))}\nRadius ${140 + 25 * lv}`)),
-  ability('poison', L('부식탄', 'Corrosive Rounds'), 'rare', 'e_penta', lv => L(`명중한 적에게 독\n초당 공격력의 ${pct(0.3 * lv)} (3초)`, `Hits poison enemies\n${pct(0.3 * lv)} of damage per sec (3s)`)),
+  { id: 'multi', name: L('쌍꼬치', 'Twin skewers'), rarity: 'rare', icon: 'e_tri', desc: s => L(`발사체 +1 (${s.multishot} → ${s.multishot + 1})`, `Projectiles +1 (${s.multishot} → ${s.multishot + 1})`), apply: c => { c.stats.multishot += 1; }, can: c => c.stats.multishot < 7 },
+  { id: 'pierce', name: L('꼬치 한 줄', 'Long skewer'), rarity: 'rare', icon: 'missile', desc: s => L(`탄환이 적 ${s.pierce + 1}명 더 관통`, `Bullets pierce ${s.pierce + 1} more`), apply: c => { c.stats.pierce += 1; }, can: c => c.stats.pierce < 5 },
+  { id: 'critdmg', name: L('불맛 한 꼬집', 'Extra char'), rarity: 'rare', icon: 'e_diamond', desc: s => L(`치명타 피해 ${pct(s.critMult)} → ${pct(s.critMult + 0.5)}`, `Crit damage ${pct(s.critMult)} → ${pct(s.critMult + 0.5)}`), apply: c => { c.stats.critMult += 0.5; } },
+  { id: 'lifesteal', name: L('단골의 응원', 'Regulars’ cheer'), rarity: 'rare', icon: 'e_circle', desc: s => L(`적 처치 시 체력 +${s.lifesteal + 1}`, `+${s.lifesteal + 1} HP per kill`), apply: c => { c.stats.lifesteal += 1; }, can: c => c.stats.lifesteal < 5 },
+  ability('splash', L('소스 폭탄', 'Sauce splash'), 'rare', 'ring', lv => L(`명중 시 주변 폭발\n범위 ${50 + 12 * lv}, 피해 ${pct(0.35 + 0.1 * lv)}`, `Hits explode\nRadius ${50 + 12 * lv}, ${pct(0.35 + 0.1 * lv)} damage`)),
+  ability('frost', L('살얼음 동치미', 'Chilled broth'), 'rare', 'e_hex', lv => L(`주변 적 감속 ${pct(Math.min(0.5, 0.15 + 0.07 * lv))}\n범위 ${140 + 25 * lv}`, `Slows nearby enemies ${pct(Math.min(0.5, 0.15 + 0.07 * lv))}\nRadius ${140 + 25 * lv}`)),
+  ability('poison', L('톡 쏘는 양념', 'Tangy sauce'), 'rare', 'e_penta', lv => L(`명중한 적에게 독\n초당 공격력의 ${pct(0.3 * lv)} (3초)`, `Hits poison enemies\n${pct(0.3 * lv)} of damage per sec (3s)`)),
 
   // 영웅
-  ability('chain', L('연쇄 번개', 'Chain Lightning'), 'epic', 'e_tri', lv => L(`${pct(0.2 + 0.05 * lv)} 확률로 번개 발동\n적 ${1 + lv}명에게 연쇄`, `${pct(0.2 + 0.05 * lv)} chance on hit\nChains to ${1 + lv} enemies`)),
-  ability('blades', L('궤도 칼날', 'Orbit Blades'), 'epic', 'blade', lv => L(`칼날 ${lv + 1}개가 기지 주위를 회전`, `${lv + 1} blades orbit your base`)),
-  ability('missiles', L('추적 미사일', 'Homing Missiles'), 'epic', 'missile', lv => L(`2.5초마다 미사일 ${lv}발\n폭발 피해 공격력의 160%`, `${lv} missile(s) every 2.5s\nExplosion: 160% damage`)),
-  ability('nova', L('충격파', 'Shockwave'), 'epic', 'ring', lv => L(`${(7 - 0.8 * lv).toFixed(1)}초마다 충격파\n피해 + 적 밀쳐내기`, `Shockwave every ${(7 - 0.8 * lv).toFixed(1)}s\nDamages and knocks back`)),
-  ability('execute', L('처형', 'Execute'), 'epic', 'e_diamond', lv => L(`체력 ${pct(0.07 * lv)} 이하 적 즉사\n(보스 제외)`, `Instantly kill enemies\nbelow ${pct(0.07 * lv)} HP (not bosses)`), 3),
+  ability('chain', L('찌릿한 산초', 'Pepper zing'), 'epic', 'e_tri', lv => L(`${pct(0.2 + 0.05 * lv)} 확률로 번개 발동\n적 ${1 + lv}명에게 연쇄`, `${pct(0.2 + 0.05 * lv)} chance on hit\nChains to ${1 + lv} enemies`)),
+  ability('blades', L('회전 꼬치', 'Spinning skewers'), 'epic', 'blade', lv => L(`칼날 ${lv + 1}개가 냄비 주위를 회전`, `${lv + 1} blades orbit your pot`)),
+  ability('missiles', L('날아라 만두', 'Flying dumplings'), 'epic', 'missile', lv => L(`2.5초마다 미사일 ${lv}발\n폭발 피해 공격력의 160%`, `${lv} missile(s) every 2.5s\nExplosion: 160% damage`)),
+  ability('nova', L('뚜껑 탕!', 'Lid slam'), 'epic', 'ring', lv => L(`${(7 - 0.8 * lv).toFixed(1)}초마다 충격파\n피해 + 적 밀쳐내기`, `Shockwave every ${(7 - 0.8 * lv).toFixed(1)}s\nDamages and knocks back`)),
+  ability('execute', L('배부른 한입', 'One last bite'), 'epic', 'e_diamond', lv => L(`체력 ${pct(0.07 * lv)} 이하 적 즉사\n(보스 제외)`, `Instantly kill enemies\nbelow ${pct(0.07 * lv)} HP (not bosses)`), 3),
 
   // 전설
-  { id: 'overdrive', name: L('오버드라이브', 'Overdrive'), rarity: 'legendary', icon: 'core', desc: () => L('공격 속도 +50%\n공격력 +25%', 'Attack speed +50%\nDamage +25%'), apply: c => { c.stats.ratePct += 0.5; c.stats.dmgPct += 0.25; } },
-  { id: 'barrage', name: L('탄막', 'Barrage'), rarity: 'legendary', icon: 'e_tri', desc: () => L('발사체 +2', 'Projectiles +2'), apply: c => { c.stats.multishot += 2; }, can: c => c.stats.multishot < 7 },
-  { id: 'fortress', name: L('요새화', 'Fortify'), rarity: 'legendary', icon: 'e_square', desc: () => L('최대 체력 +60, 재생 +2\n받는 피해 -10%', 'Max HP +60, regen +2\nDamage taken -10%'), apply: c => { c.stats.maxHp += 60; c.heal(60); c.stats.regen += 2; c.stats.dmgReduce = Math.min(0.7, c.stats.dmgReduce + 0.1); } },
-  { id: 'glass', name: L('유리 대포', 'Glass Cannon'), rarity: 'legendary', icon: 'e_diamond', desc: () => L('공격력 +80%\n최대 체력 -30%', 'Damage +80%\nMax HP -30%'), apply: c => { c.stats.dmgPct += 0.8; c.stats.maxHp = Math.round(c.stats.maxHp * 0.7); c.heal(0); }, can: c => c.stats.maxHp > 70 },
+  { id: 'overdrive', name: L('불타는 화구', 'High heat'), rarity: 'legendary', icon: 'core', desc: () => L('공격 속도 +50%\n공격력 +25%', 'Attack speed +50%\nDamage +25%'), apply: c => { c.stats.ratePct += 0.5; c.stats.dmgPct += 0.25; } },
+  { id: 'barrage', name: L('곱빼기 잔치', 'Double feast'), rarity: 'legendary', icon: 'e_tri', desc: () => L('발사체 +2', 'Projectiles +2'), apply: c => { c.stats.multishot += 2; }, can: c => c.stats.multishot < 7 },
+  { id: 'fortress', name: L('무쇠 냄비', 'Cast iron pot'), rarity: 'legendary', icon: 'e_square', desc: () => L('최대 체력 +60, 재생 +2\n받는 피해 -10%', 'Max HP +60, regen +2\nDamage taken -10%'), apply: c => { c.stats.maxHp += 60; c.heal(60); c.stats.regen += 2; c.stats.dmgReduce = Math.min(0.7, c.stats.dmgReduce + 0.1); } },
+  { id: 'glass', name: L('극한 매운맛', 'Extreme spice'), rarity: 'legendary', icon: 'e_diamond', desc: () => L('공격력 +80%\n최대 체력 -30%', 'Damage +80%\nMax HP -30%'), apply: c => { c.stats.dmgPct += 0.8; c.stats.maxHp = Math.round(c.stats.maxHp * 0.7); c.heal(0); }, can: c => c.stats.maxHp > 70 },
 ];
 
 export function rarityWeights(wave: number): Record<Rarity, number> {

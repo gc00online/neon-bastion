@@ -1,0 +1,12 @@
+node_modules
+dist
+ios/App/App/public
+android/app/src/main/assets/public
+.DS_Store
+
+# 앱 서명 키 (절대 올리지 않기)
+*.jks
+*.keystore
+key.properties
+*.p12
+*.mobileprovision

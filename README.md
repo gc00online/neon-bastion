@@ -3,6 +3,9 @@
 광고 없는 세로형 모바일 디펜스 게임. Phaser 3 + TypeScript + Vite, 앱 포장은 Capacitor 8.
 한국어/영어 지원(기기 언어 자동 선택, 메뉴 › 설정에서 변경).
 
+- 웹에서 플레이: https://gc00online.github.io/neon-bastion/ (main 에 푸시하면 자동 배포)
+- 개인정보처리방침: https://gc00online.github.io/neon-bastion/privacy.html
+
 ## 게임 구조
 - 기지가 자동으로 공격하고, **웨이브가 끝날 때마다 카드 3장 중 1장**을 골라 빌드를 만든다. (카드 24종)
 - 5웨이브마다 보스: 헥스 타이탄 → 하이브 퀸(졸개 소환) → 아틸러리(원거리 탄막) 순환.

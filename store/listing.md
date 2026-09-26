@@ -8,7 +8,7 @@
 | 카테고리 | 게임 › 전략 (보조: 캐주얼) |
 | 가격 | 무료 (광고 없음, 인앱결제 없음) |
 | 연령 등급 | 전체 이용가 / 4+ (폭력: 추상적인 도형이 터지는 정도) |
-| 개인정보처리방침 URL | `docs/privacy.html`을 GitHub Pages 등에 올린 주소 |
+| 개인정보처리방침 URL | https://gc00online.github.io/neon-bastion/privacy.html |
 
 ---
 

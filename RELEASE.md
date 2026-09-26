@@ -7,7 +7,7 @@
 - [x] 스토어 스크린샷: `store/ios`, `store/ios-en` (1320×2868), `store/google`, `store/google-en` (1080×1920)
 - [x] Google Play 그래픽 이미지 `store/google-feature-graphic-1024x500.png`, 아이콘 `store/google-icon-512.png`
 - [x] 스토어 설명문·키워드·심사 설문 답변: `store/listing.md`
-- [x] 개인정보처리방침 초안: `docs/privacy.html`
+- [x] 개인정보처리방침 초안: `public/privacy.html` → https://gc00online.github.io/neon-bastion/privacy.html
 - [x] Android Studio 설치됨 (`/Applications/Android Studio.app`)
 
 ## 1. 개발 도구 준비 (직접 해야 함)
@@ -35,7 +35,7 @@
 - [ ] `capacitor.config.ts`의 `appId` → 본인 고유 ID (예: `com.yourname.neonbastion`). **한 번 올리면 못 바꿈**
       바꾼 뒤: `ios/`, `android/` 폴더 삭제 → `npx cap add ios && npx cap add android` → 아이콘 재생성 명령 실행 → 세로 고정 설정 다시 적용
       (이 작업은 요청하시면 제가 해드릴게요)
-- [ ] `docs/privacy.html`의 [개발자 이름], [연락처 이메일] 채우기 → GitHub Pages 등에 올려 URL 확보
+- [ ] `public/privacy.html`의 [개발자 이름], [연락처 이메일] 채우기 (푸시하면 GitHub Pages에 자동 반영)
 
 ## 4. iOS 출시
 1. `npm run ios` → Xcode에서 App 타깃 › Signing & Capabilities › Team 선택

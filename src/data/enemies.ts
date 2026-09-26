@@ -56,13 +56,13 @@ const POOL: PoolItem[] = [
 
 export function isBossWave(w: number) { return w % 5 === 0; }
 
-export function buildWave(w: number, rng: () => number = Math.random, countMul = 1): { entries: SpawnEntry[]; duration: number } {
+export function buildWave(w: number, rng: () => number = Math.random, countMul = 1, bossWave = w): { entries: SpawnEntry[]; duration: number } {
   let budget = (6 + w * 2.2 + Math.pow(w, 1.35) * 0.8) * countMul;
   const duration = Math.min(9 + w * 0.9, 26);
   const entries: SpawnEntry[] = [];
-  if (isBossWave(w)) {
+  if (isBossWave(bossWave)) {
     budget *= 0.5;
-    entries.push({ t: 1.5, kind: bossForWave(w) });
+    entries.push({ t: 1.5, kind: bossForWave(bossWave) });
   }
   const avail = POOL.filter(p => w >= p.from);
   const total = avail.reduce((s, p) => s + p.weight, 0);

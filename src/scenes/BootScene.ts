@@ -14,6 +14,14 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     this.load.image('arena', asset('arena.webp'));
+    for (let chapter = 1; chapter <= 5; chapter++) {
+      this.load.image(`arena-chapter-${chapter}`, asset(`chapters/arena-${String(chapter).padStart(2, '0')}.webp`));
+    }
+    this.load.image('sauce-projectile', asset('sauce-projectile.png'));
+    this.load.image('hud-plank', asset('ui/hud-plank.png'));
+    this.load.image('combat-card', asset('ui/combat-card.png'));
+    this.load.image('recipe-card', asset('ui/card.webp'));
+    for (const key of ['dmg', 'rate', 'regen']) this.load.image(`recipe-${key}`, asset(`ui/icons/${key}.png`));
     for (const key of ['pot', 'rice', 'dumpling', 'spirit']) this.load.image(key, asset(`${key}.png`));
   }
 

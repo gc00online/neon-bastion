@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { W, H, CORE_X, CORE_Y, CORE_R, COLOR, setupCamera, hex } from '../config';
+import { W, H, CORE_R, COLOR, setupCamera, hex } from '../config';
 import { RING_R, CORE_TEX_R } from './BootScene';
 import { ENEMIES, EnemyKind, SpawnEntry, buildWave, hpMul, speedMul, dmgMul, isBossWave, bossForWave } from '../data/enemies';
 import { Card, CardCtx, Rarity, RARITY, drawCards, CARDS } from '../data/cards';
@@ -14,7 +14,6 @@ import { mountScreen, bind, artIcon, coin, escapeHtml } from '../ui/dom';
 import { RECIPE_ICONS } from './LabScene';
 import { save, persist, applySettings } from '../save';
 import { txt, panel, button, Button } from '../ui/widgets';
-import { drawBackground } from '../ui/bg';
 
 type Img = Phaser.GameObjects.Image;
 type State = 'play' | 'between' | 'cards' | 'paused' | 'over';
@@ -38,7 +37,7 @@ interface Enemy {
   spin: number;
 }
 
-interface Bullet { s: Img; x: number; y: number; vx: number; vy: number; dmg: number; crit: boolean; pierce: number; hit: Enemy[]; life: number; dead: boolean; }
+interface Bullet { s: Img; x: number; y: number; vx: number; vy: number; dmg: number; crit: boolean; pierce: number; hit: Enemy[]; life: number; trailT: number; dead: boolean; }
 interface Missile { s: Img; x: number; y: number; vx: number; vy: number; target: Enemy | null; life: number; trail: number; dead: boolean; }
 interface EBullet { s: Img; x: number; y: number; vx: number; vy: number; dmg: number; dead: boolean; }
 interface Bolt { pts: number[]; life: number; }
@@ -47,9 +46,12 @@ interface Num { t: Phaser.GameObjects.Text; busy: boolean; }
 const BLADE_R = 108;
 const STEP = 1 / 60;
 const HAND_FONT = '"Gaegu", "Apple SD Gothic Neo", cursive';
+// Guests approach from the top; the pot is anchored near the lower third of the playable street.
+const CORE_X = W / 2;
+const CORE_Y = Math.round(H * 0.65);
 // Painted sprites extend beyond the old geometric core radius. Keep attacks and
 // contact at their visible edges, while CORE_R still sizes the skewer pointer.
-const POT_HIT_R = 110;
+const POT_HIT_R = 124;
 const ENEMY_ART_RADIUS = 1.7;
 
 // 아이콘 텍스처별 실제 그림 지름(px) → 원하는 크기로 맞추기 위한 배율
@@ -108,12 +110,12 @@ export class GameScene extends Phaser.Scene {
   private coreAura!: Img;
   private lanternGlows: Img[] = [];
   private steam!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private brothTrail!: Phaser.GameObjects.Particles.ParticleEmitter;
   private recoil = 0;
   private frostRing!: Img;
   private frostFill!: Img;
   private rangeG!: Phaser.GameObjects.Graphics;
   private fxG!: Phaser.GameObjects.Graphics;
-  private trailG!: Phaser.GameObjects.Graphics;
   private shadowG!: Phaser.GameObjects.Graphics;
   private barG!: Phaser.GameObjects.Graphics;
 
@@ -126,6 +128,7 @@ export class GameScene extends Phaser.Scene {
   private hudStats!: Phaser.GameObjects.Text;
   private hudBoss!: Phaser.GameObjects.Text;
   private abilityRow!: Phaser.GameObjects.Container;
+  private recipePreview: Phaser.GameObjects.Text[] = [];
   private speedBtn!: Button;
   private overlay?: Phaser.GameObjects.Container;
   private shownHp = 0;
@@ -144,7 +147,10 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     setupCamera(this);
-    drawBackground(this);
+    const chapter = Math.min(5, Math.max(1, Math.ceil((this.stage?.id ?? 1) / 5)));
+    const backgroundKey = this.textures.exists(`arena-chapter-${chapter}`) ? `arena-chapter-${chapter}` : 'arena';
+    const background = this.add.image(W / 2, H / 2, backgroundKey).setDepth(0);
+    background.setScale(Math.max(W / background.width, H / background.height));
 
     const params = new URLSearchParams(location.search);
     this.bot = params.has('bot');
@@ -178,6 +184,7 @@ export class GameScene extends Phaser.Scene {
     this.nums = [];
     this.overlay = undefined;
     this.recoil = 0;
+    this.recipePreview = [];
 
     // 골목의 등불은 작게 흔들리고, 냄비의 붉은 불빛이 젖은 바닥을 덥힌다.
     this.lanternGlows = [[0.14, 0.08], [0.85, 0.04], [0.055, 0.32], [0.94, 0.33], [0.06, 0.76], [0.91, 0.89]].map(([x, y]) =>
@@ -198,16 +205,22 @@ export class GameScene extends Phaser.Scene {
     this.frostRing = this.add.image(CORE_X, CORE_Y, 'ring').setTint(0x7fdbff).setAlpha(0).setDepth(5);
     this.rangeG = this.add.graphics().setDepth(6);
     this.barG = this.add.graphics().setDepth(11);
-    this.core = this.add.image(CORE_X, CORE_Y, 'pot').setDisplaySize(240, 240).setDepth(20);
+    this.core = this.add.image(CORE_X, CORE_Y, 'pot').setDisplaySize(270, 270).setDepth(20);
     this.barrel = this.add.image(CORE_X, CORE_Y, 'barrel').setScale(CORE_R / CORE_TEX_R).setDepth(21);
     this.fxG = this.add.graphics().setDepth(26).setBlendMode(Phaser.BlendModes.ADD);
-    this.trailG = this.add.graphics().setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
     this.steam = this.add.particles(CORE_X, CORE_Y - 39, 'steam', {
       x: { min: -26, max: 26 }, speedX: { min: -20, max: 20 }, speedY: { min: -95, max: -60 },
       lifespan: { min: 900, max: 1550 }, scale: { start: 0.38, end: 1.2 },
       alpha: { start: 0.42, end: 0 }, frequency: 105, quantity: 1,
       blendMode: 'ADD',
     }).setDepth(23);
+    const brothKey = this.textures.exists('sauce-projectile') ? 'sauce-projectile' : 'sauce';
+    const brothTrailScale = 24 / this.textures.get(brothKey).source[0].width;
+    this.brothTrail = this.add.particles(0, 0, brothKey, {
+      speed: { min: 0, max: 18 }, lifespan: { min: 130, max: 250 },
+      scale: { start: brothTrailScale, end: brothTrailScale * 0.12 }, alpha: { start: 0.7, end: 0 },
+      emitting: false, blendMode: Phaser.BlendModes.NORMAL,
+    }).setDepth(14);
     for (let i = 0; i < 3; i++) {
       const x = CORE_X + (i - 1) * 25, y = CORE_Y - 102;
       const wisp = this.add.image(x, y, 'steam-wisp').setScale(0.7 + i * 0.06).setAlpha(0).setDepth(22).setBlendMode(Phaser.BlendModes.ADD);
@@ -253,7 +266,7 @@ export class GameScene extends Phaser.Scene {
 
   private startWave() {
     this.wave++;
-    const { entries } = buildWave(this.wave + (this.stage?.offset ?? 0), this.rng, (this.mod?.count ?? 1) * (this.stage ? 1 + (this.stage.id - 1) * 0.05 : 1));
+    const { entries } = buildWave(this.wave + (this.stage?.offset ?? 0), this.rng, (this.mod?.count ?? 1) * (this.stage ? 1 + (this.stage.id - 1) * 0.05 : 1), this.wave);
     this.queue = entries;
     this.waveTime = 0;
     this.waveTotal = entries.length;
@@ -261,7 +274,7 @@ export class GameScene extends Phaser.Scene {
     this.state = 'play';
     const boss = isBossWave(this.wave);
     this.banner(boss ? L('큰 손님 등장!', 'A HUNGRY GUEST!') : L(`${this.wave}번째 영업`, `WAVE ${this.wave}`), boss ? COLOR.pink : COLOR.cyan);
-    if (boss) { const b = ENEMIES[bossForWave(this.wave + (this.stage?.offset ?? 0))]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
+    if (boss) { const b = ENEMIES[bossForWave(this.wave)]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
     if (boss) { sfx.boss(); this.cameras.main.flash(250, 120, 0, 40); this.ringFx(CORE_X, CORE_Y, 280, 0xba76c6, 680, 0.25); }
     else { sfx.waveStart(); this.burst(CORE_X, CORE_Y - 45, 0xffca70, 9, 'spark'); }
     if (!this.bot) music.play(boss ? 2 : 1);
@@ -367,13 +380,10 @@ export class GameScene extends Phaser.Scene {
   private spawnEnemy(kind: EnemyKind, x?: number, y?: number) {
     const d = ENEMIES[kind];
     if (x === undefined || y === undefined) {
-      // 화면 바깥 테두리 어딘가에서 등장
-      const m = 50, pw = W + m * 2, ph = H + m * 2;
-      let p = Math.random() * (pw + ph) * 2;
-      if (p < pw) { x = p - m; y = -m; }
-      else if ((p -= pw) < ph) { x = W + m; y = p - m; }
-      else if ((p -= ph) < pw) { x = p - m; y = H + m; }
-      else { p -= pw; x = -m; y = p - m; }
+      // 손님은 가게 건너편, 화면 위쪽의 골목 다섯 진입로에서만 내려온다.
+      const lane = Math.min(4, Math.floor(this.rng() * 5));
+      x = 85 + lane * ((W - 170) / 4) + (this.rng() - 0.5) * 42;
+      y = -d.r * 2 - 12 - this.rng() * 40;
     }
     const boss = !!d.boss;
     const hp = d.hp * hpMul(this.wave + (this.stage?.offset ?? 0)) * (boss ? 1 + 0.15 * (this.wave / 5 - 1) : 1) * (this.mod?.enemyHp ?? 1);
@@ -429,10 +439,10 @@ export class GameScene extends Phaser.Scene {
       }
 
       const hold = e.kind === 'shooter' ? 250 : e.kind === 'artillery' ? 235 : 0;
-      if (hold && d < hold) {
-        // 사거리 안에서 천천히 돌면서 사격
-        e.vx = (-dy / d) * sp * 0.35;
-        e.vy = (dx / d) * sp * 0.35;
+      if (hold && e.y >= CORE_Y - hold && e.y < CORE_Y) {
+        // 원거리 손님은 냄비 앞에 머무르며 국물을 피하지 않고 사격한다.
+        e.vx = Math.sin(this.time.now / 530 + i) * sp * 0.22;
+        e.vy = (CORE_Y - hold - e.y) * 0.9;
         if (e.shootT <= 0) {
           if (e.kind === 'shooter') { e.shootT = 2.2; this.enemyShoot(e); }
           else { e.shootT = 2.6; for (let k = -2; k <= 2; k++) this.enemyShoot(e, k * 0.16, 220); }
@@ -601,10 +611,14 @@ export class GameScene extends Phaser.Scene {
       if (i >= targets.length) a += (Math.floor(i / targets.length) % 2 ? 1 : -1) * 0.09 * Math.ceil(i / targets.length);
       const crit = Math.random() < st.critChance;
       const x = CORE_X + Math.cos(a) * (POT_HIT_R + 8), y = CORE_Y + Math.sin(a) * (POT_HIT_R + 8);
-      const s = this.img('sauce', 15).clearTint().setScale(crit ? 0.87 : 0.7).setPosition(x, y).setRotation(a);
+      const painted = this.textures.exists('sauce-projectile');
+      const size = painted ? (crit ? 92 : 76) : (crit ? 51 : 42);
+      const s = this.img(painted ? 'sauce-projectile' : 'sauce', 15).clearTint()
+        .setDisplaySize(size, size)
+        .setPosition(x, y).setRotation(a + Math.PI / 4);
       this.bullets.push({
         s, x, y, vx: Math.cos(a) * st.projSpeed, vy: Math.sin(a) * st.projSpeed,
-        dmg: st.damage * (crit ? st.critMult : 1), crit, pierce: st.pierce, hit: [], life: 1.2, dead: false,
+        dmg: st.damage * (crit ? st.critMult : 1), crit, pierce: st.pierce, hit: [], life: 1.2, trailT: 0, dead: false,
       });
       if (i === 0) this.barrel.rotation = a + Math.PI / 2;
     }
@@ -622,6 +636,11 @@ export class GameScene extends Phaser.Scene {
       b.life -= dt;
       if (b.life <= 0 || b.x < -40 || b.x > W + 40 || b.y < -40 || b.y > H + 40) { b.dead = true; this.free(b.s); continue; }
       b.s.setPosition(b.x, b.y);
+      b.trailT -= dt;
+      if (b.trailT <= 0) {
+        b.trailT = 0.025;
+        this.brothTrail.explode(b.crit ? 3 : 2, b.x - b.vx * 0.018, b.y - b.vy * 0.018);
+      }
       for (const e of this.enemies) {
         if (e.dead || b.hit.includes(e)) continue;
         const rr = e.r + 6;
@@ -865,7 +884,7 @@ export class GameScene extends Phaser.Scene {
     const st = this.stats;
     // 기지
     this.recoil = Math.max(0, this.recoil - dt * 7);
-    this.core.setScale((240 / 320) * (1 + this.recoil * 0.035));
+    this.core.setScale((270 / 320) * (1 + this.recoil * 0.035));
     this.core.rotation = Math.sin(this.time.now / 350) * 0.008 + this.recoil * 0.015;
     this.barrel.setScale(Phaser.Math.Linear(this.barrel.scale, CORE_R / CORE_TEX_R, Math.min(1, dt * 12)));
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
@@ -881,20 +900,6 @@ export class GameScene extends Phaser.Scene {
       if (e.dead) continue;
       this.shadowG.fillStyle(0x130c14, e.boss ? 0.55 : 0.4);
       this.shadowG.fillEllipse(e.x, e.y + e.r * 0.82, e.r * 2.3, e.r * 0.75);
-    }
-
-    this.trailG.clear();
-    for (const b of this.bullets) {
-      if (b.dead) continue;
-      const d = Math.hypot(b.vx, b.vy) || 1;
-      const tx = b.x - b.vx / d * (b.crit ? 45 : 34), ty = b.y - b.vy / d * (b.crit ? 45 : 34);
-      this.trailG.lineStyle(b.crit ? 13 : 9, 0xf35222, 0.24).lineBetween(tx, ty, b.x, b.y);
-      this.trailG.lineStyle(b.crit ? 4 : 3, b.crit ? 0xffde70 : 0xff9e4d, 0.75).lineBetween(tx + (b.x - tx) * 0.5, ty + (b.y - ty) * 0.5, b.x, b.y);
-    }
-    for (const m of this.missiles) {
-      if (m.dead) continue;
-      const d = Math.hypot(m.vx, m.vy) || 1;
-      this.trailG.lineStyle(12, 0xff9938, 0.2).lineBetween(m.x - m.vx / d * 48, m.y - m.vy / d * 48, m.x, m.y);
     }
 
     // 번개
@@ -941,33 +946,39 @@ export class GameScene extends Phaser.Scene {
   // ───────────────────────── HUD ─────────────────────────
 
   private buildHud() {
-    const top = this.add.graphics().setDepth(49);
-    top.fillStyle(0x171017, 0.9).fillRoundedRect(6, 7, W - 12, 105, 13);
-    top.fillStyle(0x51301d, 0.98).fillRoundedRect(10, 10, W - 20, 97, 11);
-    top.lineStyle(3, 0xa76438, 0.95).strokeRoundedRect(10, 10, W - 20, 97, 11);
-    top.lineStyle(2, 0x7a4227, 0.65).lineBetween(18, 73, W - 18, 73);
-    top.lineStyle(1, 0xe19d55, 0.22).lineBetween(22, 20, W - 22, 20);
-    top.fillStyle(0x2c1b18, 0.96).fillRoundedRect(20, 21, 236, 77, 10);
-    top.lineStyle(2, 0xd1955d, 0.65).strokeRoundedRect(20, 21, 236, 77, 10);
-    top.fillStyle(0xe2aa67, 0.8);
-    for (const x of [17, W - 17]) for (const y of [18, 99]) top.fillCircle(x, y, 2.6);
-    top.fillStyle(0x332019, 0.94).fillRoundedRect(0, H - 112, W, 116, 12);
-    top.lineStyle(3, 0x9b5b36, 0.9).lineBetween(0, H - 111, W, H - 111);
-    top.lineStyle(1, 0xe0a261, 0.2).lineBetween(8, H - 104, W - 8, H - 104);
+    if (this.textures.exists('hud-plank')) {
+      // The painted file includes transparent padding; 224 logical pixels gives the plank itself a 112 px face.
+      this.add.image(W / 2, 59, 'hud-plank').setDisplaySize(W + 8, 224).setDepth(49);
+    } else {
+      const top = this.add.graphics().setDepth(49);
+      top.fillStyle(0x51301d, 0.97).fillRoundedRect(4, 3, W - 8, 113, 12);
+      top.lineStyle(3, 0xa76438, 0.95).strokeRoundedRect(4, 3, W - 8, 113, 12);
+    }
+
+    const cardKey = this.textures.exists('combat-card') ? 'combat-card' : 'recipe-card';
+    const cardH = cardKey === 'combat-card' ? 228 : 142;
+    const cardW = cardKey === 'combat-card' ? 164 : 212;
+    for (let i = 0; i < 3; i++) {
+      const x = cardKey === 'combat-card' ? 180 + i * 180 : 126 + i * 234;
+      this.add.image(x, H - cardH / 2 - 3, cardKey).setDisplaySize(cardW, cardH).setDepth(48);
+      const icon = ['recipe-dmg', 'recipe-rate', 'recipe-regen'][i];
+      if (this.textures.exists(icon)) this.add.image(x, H - cardH + 83, icon).setDisplaySize(88, 88).setDepth(49);
+      txt(this, x, H - 64, [L('매운맛', 'SPICE'), L('손놀림', 'SPEED'), L('진한 국물', 'BROTH')][i], 27, { color: 0x68201b })
+        .setFontFamily(HAND_FONT).setDepth(50);
+      this.recipePreview.push(txt(this, x, H - 36, '', 19, { color: 0x955232, bold: false }).setFontFamily(HAND_FONT).setDepth(50));
+    }
 
     this.add.image(48, 59, 'rice').setDisplaySize(49, 49).setDepth(50);
-    this.hudWave = txt(this, 148, 47, 'WAVE 1', 38, { color: 0xffebbb, glow: true }).setFontFamily(HAND_FONT).setDepth(50);
-    this.hudSub = txt(this, 148, 80, '', 20, { color: 0xe6bd91, bold: false }).setFontFamily(HAND_FONT).setDepth(50);
+    this.hudWave = txt(this, 171, 47, 'WAVE 1', 34, { color: 0xffebbb, glow: true }).setFontFamily(HAND_FONT).setDepth(50);
+    this.hudSub = txt(this, 171, 80, '', 20, { color: 0xe6bd91, bold: false }).setFontFamily(HAND_FONT).setDepth(50);
     this.hudG = this.add.graphics().setDepth(50);
     this.hudHearts = [0, 1, 2].map(i => txt(this, 296 + i * 51, 49, '♥', 43, { color: 0xff7161, glow: true }).setDepth(51));
     this.hudHp = txt(this, 348, 84, '', 17, { color: 0xf5d8b1, bold: false }).setDepth(51);
     this.hudCoin = txt(this, 492, 50, '', 20, { color: 0xffd47b }).setDepth(51);
-    top.fillStyle(0xffc264, 1).fillCircle(463, 50, 14);
-    top.lineStyle(3, 0xffe4a1, 0.95).strokeCircle(463, 50, 10);
-    top.fillStyle(0x895323, 0.9).fillCircle(463, 50, 3);
+    txt(this, 463, 50, '◉', 27, { color: 0xffcc75 }).setDepth(51);
     this.hudBoss = txt(this, W / 2, 162, '', 24, { glow: true }).setFontFamily(HAND_FONT).setDepth(50).setVisible(false);
-    this.hudStats = txt(this, W / 2, H - 33, '', 18, { color: 0xf0d7b3, bold: false }).setDepth(50);
-    this.abilityRow = this.add.container(0, H - 80).setDepth(50);
+    this.hudStats = txt(this, W / 2, H - cardH - 18, '', 18, { color: 0xf0d7b3, bold: false }).setDepth(50);
+    this.abilityRow = this.add.container(0, H - cardH - 61).setDepth(50);
 
     this.speedBtn = button(this, 577, 56, 71, 61, 'x1', COLOR.yellow, () => {
       this.speedMode = this.speedMode === 1 ? 2 : 1;
@@ -1026,6 +1037,10 @@ export class GameScene extends Phaser.Scene {
     this.hp = Math.min(this.hp, st.maxHp);
 
     this.hudStats.setText(L(`공격 ${Math.round(st.damage)}  ·  속도 ${st.fireRate.toFixed(1)}/s  ·  사거리 ${Math.round(st.range)}  ·  치명 ${Math.round(st.critChance * 100)}%`, `DMG ${Math.round(st.damage)}  ·  SPD ${st.fireRate.toFixed(1)}/s  ·  RNG ${Math.round(st.range)}  ·  CRIT ${Math.round(st.critChance * 100)}%`));
+    const preview = [L(`공격 ${Math.round(st.damage)}`, `DMG ${Math.round(st.damage)}`),
+      L(`${st.fireRate.toFixed(1)}회/초`, `${st.fireRate.toFixed(1)}/s`),
+      L(`회복 ${st.regen.toFixed(1)}/초`, `HEAL ${st.regen.toFixed(1)}/s`)];
+    this.recipePreview.forEach((label, i) => label.setText(preview[i]));
 
     // 획득한 능력 아이콘
     this.abilityRow.removeAll(true);
@@ -1212,7 +1227,7 @@ export class GameScene extends Phaser.Scene {
     const stars = this.won ? completionStars(this.hp, this.stats.maxHp) : 0;
     const nextStage = this.stage && this.stage.id < STAGES.length ? this.stage.id + 1 : null;
     const minutes = Math.floor(this.runSeconds / 60), seconds = Math.floor(this.runSeconds % 60);
-    this.domOverlay = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${this.stage ? `01–0${this.stage.id} · ${this.stage.name}` : L('오늘의 특별 영업', 'TONIGHT’S SPECIAL')}</p>${artIcon('pot', 'result-pot')}<div class="result-stars">${stars ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '☾'}</div><h1>${this.won ? L('오늘도 완판!', 'Sold out tonight!') : L('오늘은 여기까지', 'A good night’s work')}</h1><p class="subtitle">${this.won ? L('골목에 따뜻한 한 그릇을 전했어요.', 'A little warmth for everyone in the alley.') : L('모은 엽전으로 더 든든한 냄비를 준비해요.', 'Use your coins to prepare for the next night.')}${newBest ? ' ' + L('최고 기록 갱신!', 'New best!') : ''}</p><div class="receipt"><div>${L('버틴 웨이브', 'Waves served')}<b>${this.wavesCleared}${this.stage ? ' / ' + this.stage.waves : ' / ' + reached}</b></div><div>${L('대접한 손님', 'Guests served')}<b>${this.kills}</b></div><div>${L('영업 시간', 'Time open')}<b>${minutes}:${String(seconds).padStart(2, '0')}</b></div></div><div class="reward-row"><div>${coin(gems)}<small>${L('획득한 엽전', 'COINS EARNED')}</small></div><div>✦ ${this.earnedXp}<small>${L('영업 경험치', 'EXPERIENCE')}</small></div></div><div class="result-level">${L('냄비', 'POT')} Lv. ${this.previousLevel}${potLevel(save.xp) > this.previousLevel ? ' → ' + potLevel(save.xp) : ''}<div class="xp-track"><span style="width:${save.xp % 200 / 2}%"></span></div><small>${save.xp % 200} / 200 XP</small></div><div class="result-buttons"><button class="primary" data-action="continue">${this.won ? nextStage ? L('다음 골목으로', 'Next alley') : L('모든 골목 완판! 지도 보기', 'All alleys served! View map') : L('다시 영업하기', 'Try another night')} <span>→</span></button><div class="button-pair"><button class="paper-button" data-action="lab">${L('비밀 레시피', 'Recipes')}</button><button class="paper-button" data-action="home">${L('가게로 돌아가기', 'Back to shop')}</button></div></div></section>`, 'game-overlay results-overlay');
+    this.domOverlay = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${this.stage ? `${String(this.stage.chapter).padStart(2, '0')}–${String(this.stage.chapterStage).padStart(2, '0')} · ${this.stage.name}` : L('오늘의 특별 영업', 'TONIGHT’S SPECIAL')}</p>${artIcon('pot', 'result-pot')}<div class="result-stars">${stars ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '☾'}</div><h1>${this.won ? L('오늘도 완판!', 'Sold out tonight!') : L('오늘은 여기까지', 'A good night’s work')}</h1><p class="subtitle">${this.won ? L('골목에 따뜻한 한 그릇을 전했어요.', 'A little warmth for everyone in the alley.') : L('모은 엽전으로 더 든든한 냄비를 준비해요.', 'Use your coins to prepare for the next night.')}${newBest ? ' ' + L('최고 기록 갱신!', 'New best!') : ''}</p><div class="receipt"><div>${L('버틴 웨이브', 'Waves served')}<b>${this.wavesCleared}${this.stage ? ' / ' + this.stage.waves : ' / ' + reached}</b></div><div>${L('대접한 손님', 'Guests served')}<b>${this.kills}</b></div><div>${L('영업 시간', 'Time open')}<b>${minutes}:${String(seconds).padStart(2, '0')}</b></div></div><div class="reward-row"><div>${coin(gems)}<small>${L('획득한 엽전', 'COINS EARNED')}</small></div><div>✦ ${this.earnedXp}<small>${L('영업 경험치', 'EXPERIENCE')}</small></div></div><div class="result-level">${L('냄비', 'POT')} Lv. ${this.previousLevel}${potLevel(save.xp) > this.previousLevel ? ' → ' + potLevel(save.xp) : ''}<div class="xp-track"><span style="width:${save.xp % 200 / 2}%"></span></div><small>${save.xp % 200} / 200 XP</small></div><div class="result-buttons"><button class="primary" data-action="continue">${this.won ? nextStage ? L('다음 골목으로', 'Next alley') : L('모든 골목 완판! 지도 보기', 'All alleys served! View map') : L('다시 영업하기', 'Try another night')} <span>→</span></button><div class="button-pair"><button class="paper-button" data-action="lab">${L('비밀 레시피', 'Recipes')}</button><button class="paper-button" data-action="home">${L('가게로 돌아가기', 'Back to shop')}</button></div></div></section>`, 'game-overlay results-overlay');
     const root = this.domOverlay.root;
     bind(root, 'continue', () => { if (this.won) this.scene.start('Stages'); else this.scene.restart({ daily: this.daily, stage: this.stage?.id }); });
     bind(root, 'lab', () => this.scene.start('Lab'));

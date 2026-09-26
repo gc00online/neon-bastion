@@ -12,7 +12,18 @@ export class MenuScene extends Phaser.Scene {
   init(data?: { openDaily?: boolean }) { this.openDaily = !!data?.openDaily; }
   create() {
     setupCamera(this);
-    const { root } = mountScreen(this, `
+    const bitmapMenu = lang === 'ko';
+    const menu = bitmapMenu ? `
+      <picture class="concept-menu-picture" aria-hidden="true">
+        <source media="(prefers-reduced-motion: reduce)" srcset="${asset('menu-reference.png')}">
+        <img class="screen-bg concept-menu-art" src="${asset('menu-loop.webp')}" alt="" draggable="false">
+      </picture>
+      <h1 class="visually-hidden">심야분식 · 마지막 떡볶이를 지켜라</h1>
+      <button class="menu-hotspot menu-hotspot-play" data-action="play" aria-label="영업 시작"><span class="visually-hidden">영업 시작</span></button>
+      <button class="menu-hotspot menu-hotspot-lab" data-action="lab" aria-label="비밀 레시피"><span class="visually-hidden">비밀 레시피</span></button>
+      <button class="menu-extra menu-extra-daily" data-action="daily">${navGlyph('Daily')} <span>오늘의 도전</span></button>
+      <button class="menu-extra menu-extra-settings" data-action="settings" aria-label="설정">⚙</button>
+    ` : `
       <img class="screen-bg" src="${asset('title.webp')}" alt="">
       <video class="screen-bg title-video" muted loop playsinline preload="none" poster="${asset('title.webp')}" aria-hidden="true"></video>
       <div class="title-shade"></div>
@@ -21,22 +32,25 @@ export class MenuScene extends Phaser.Scene {
       <div class="menu-actions">
       <button class="primary large" data-action="play">${L('영업 시작', 'Open the shop')} <span>↗</span></button>
       <div class="button-pair"><button class="paper-button" data-action="lab">${navGlyph('Lab')} ${L('비밀 레시피', 'Secret recipes')}</button><button class="paper-button" data-action="daily">${navGlyph('Daily')} ${L('오늘의 도전', 'Daily special')}</button></div>
-      <p class="menu-foot">${L('작은 냄비 하나, 끝없는 맛있는 밤.', 'One little pot. Endless delicious nights.')}</p></div>`, 'menu-screen');
-    const video = root.querySelector('video')!;
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let stopped = false;
-    const startVideo = () => {
-      if (reduced || stopped || document.hidden) return;
-      if (!video.getAttribute('src')) video.src = asset('background.mp4');
-      void video.play().catch(() => { /* Keep the poster when autoplay is blocked. */ });
-    };
-    video.addEventListener('playing', () => video.classList.add('playing'));
-    video.addEventListener('error', () => video.classList.remove('playing'));
-    const visibility = () => { if (document.hidden) video.pause(); else startVideo(); };
-    document.addEventListener('visibilitychange', visibility);
-    root.addEventListener('pointerdown', startVideo, { once: true });
-    startVideo();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { stopped = true; document.removeEventListener('visibilitychange', visibility); });
+      <p class="menu-foot">${L('작은 냄비 하나, 끝없는 맛있는 밤.', 'One little pot. Endless delicious nights.')}</p></div>`;
+    const { root } = mountScreen(this, menu, bitmapMenu ? 'menu-screen concept-menu' : 'menu-screen');
+    if (!bitmapMenu) {
+      const video = root.querySelector('video')!;
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let stopped = false;
+      const startVideo = () => {
+        if (reduced || stopped || document.hidden) return;
+        if (!video.getAttribute('src')) video.src = asset('background.mp4');
+        void video.play().catch(() => { /* Keep the poster when autoplay is blocked. */ });
+      };
+      video.addEventListener('playing', () => video.classList.add('playing'));
+      video.addEventListener('error', () => video.classList.remove('playing'));
+      const visibility = () => { if (document.hidden) video.pause(); else startVideo(); };
+      document.addEventListener('visibilitychange', visibility);
+      root.addEventListener('pointerdown', startVideo, { once: true });
+      startVideo();
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { stopped = true; document.removeEventListener('visibilitychange', visibility); });
+    }
     bind(root, 'play', () => this.scene.start('Stages'));
     bind(root, 'lab', () => this.scene.start('Lab'));
     const openChallenge = () => {

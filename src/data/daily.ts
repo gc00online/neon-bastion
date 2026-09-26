@@ -17,9 +17,9 @@ export interface Modifier {
 }
 
 export const MODIFIERS: Modifier[] = [
-  { id: 'swift', name: L('질주', 'Rush'), desc: L('적 이동 속도 +30%\n보석 +20%', 'Enemy speed +30%\nGems +20%'), enemySpeed: 1.3, gem: 1.2 },
-  { id: 'horde', name: L('물량 공세', 'Horde'), desc: L('적 수 +50%\n보석 +30%', 'Enemy count +50%\nGems +30%'), count: 1.5, gem: 1.3 },
-  { id: 'giants', name: L('거인의 날', 'Giants'), desc: L('적 체력 +35%\n보석 +40%', 'Enemy HP +35%\nGems +40%'), enemyHp: 1.35, gem: 1.4 },
+  { id: 'swift', name: L('질주', 'Rush'), desc: L('적 이동 속도 +30%\n엽전 +20%', 'Enemy speed +30%\nCoins +20%'), enemySpeed: 1.3, gem: 1.2 },
+  { id: 'horde', name: L('물량 공세', 'Horde'), desc: L('적 수 +50%\n엽전 +30%', 'Enemy count +50%\nCoins +30%'), count: 1.5, gem: 1.3 },
+  { id: 'giants', name: L('대식가의 밤', 'Hungry guests'), desc: L('적 체력 +35%\n엽전 +40%', 'Enemy HP +35%\nCoins +40%'), enemyHp: 1.35, gem: 1.4 },
   { id: 'glass', name: L('유리 요새', 'Glass Fortress'), desc: L('최대 체력 60% 감소\n공격력 +30%', 'Max HP -60%\nDamage +30%'), apply: s => { s.maxHp = Math.round(s.maxHp * 0.4); s.dmgPct += 0.3; } },
   { id: 'lucky', name: L('행운의 날', 'Lucky Day'), desc: L('영웅·전설 카드 확률 3배', 'Epic & legendary cards ×3'), rarityBoost: 3 },
   { id: 'arsenal', name: L('무기고', 'Arsenal'), desc: L('시작할 때 영웅 카드 1장 선택', 'Pick an epic card at start'), startCard: true },

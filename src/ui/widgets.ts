@@ -12,7 +12,7 @@ export interface TextOpts {
 }
 
 export function txt(scene: Phaser.Scene, x: number, y: number, str: string, size: number, opts: TextOpts = {}) {
-  const color = opts.color ?? 0xe8ecf5;
+  const color = opts.color ?? 0xf6e7ca;
   const t = scene.add.text(x, y, str, {
     fontFamily: FONT,
     fontSize: `${size}px`,
@@ -23,11 +23,11 @@ export function txt(scene: Phaser.Scene, x: number, y: number, str: string, size
     lineSpacing: opts.lineSpacing ?? 4,
     wordWrap: opts.wrap ? { width: opts.wrap, useAdvancedWrap: true } : undefined,
   });
-  if (opts.glow) t.setShadow(0, 0, hex(color), 16, false, true);
+  if (opts.glow) t.setShadow(0, 2, "#130f14", 5, false, true);
   return t.setOrigin(opts.align === 'left' ? 0 : opts.align === 'right' ? 1 : 0.5, 0.5);
 }
 
-export function panel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, stroke: number, fill = 0x0d1224, fillAlpha = 0.95, radius = 18, lineW = 3) {
+export function panel(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, stroke: number, fill = 0x382820, fillAlpha = 0.95, radius = 18, lineW = 3) {
   g.fillStyle(fill, fillAlpha);
   g.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
   // 바깥쪽 은은한 글로우
@@ -50,9 +50,9 @@ export function button(scene: Phaser.Scene, x: number, y: number, w: number, h: 
   let enabled = true;
   const draw = (pressed: boolean) => {
     g.clear();
-    const col = enabled ? color : 0x3a4158;
-    panel(g, 0, 0, w, h, col, pressed ? 0x1a2240 : 0x0d1224, 0.95, 16, 3);
-    t.setColor(hex(enabled ? color : 0x5a6178));
+    const col = enabled ? color : 0x6e6054;
+    panel(g, 0, 0, w, h, col, pressed ? 0x694230 : 0x382820, 0.95, 16, 3);
+    t.setColor(hex(enabled ? color : 0x9b8973));
   };
   draw(false);
   c.add([g, t, zone]);

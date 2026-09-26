@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
-import { W, H, OY, CORE_X, CORE_Y, CORE_R, COLOR, setupCamera, hex } from '../config';
-import { SHAPE_R, RING_R, CORE_TEX_R } from './BootScene';
+import { W, H, CORE_X, CORE_Y, CORE_R, COLOR, setupCamera, hex } from '../config';
+import { RING_R, CORE_TEX_R } from './BootScene';
 import { ENEMIES, EnemyKind, SpawnEntry, buildWave, hpMul, speedMul, dmgMul, isBossWave, bossForWave } from '../data/enemies';
 import { Card, CardCtx, Rarity, RARITY, drawCards, CARDS } from '../data/cards';
 import { LAB, buildStats } from '../data/lab';
 import { ABILITIES, Stats } from '../game/stats';
 import { sfx, vibrate } from '../audio';
 import { music } from '../music';
-import { openSettings } from '../ui/settings';
 import { L } from '../i18n';
 import { Modifier, MODIFIERS, todayKey, todayModifier, daySeed, seededRng } from '../data/daily';
-import { save, persist } from '../save';
+import { STAGES, Stage, stageUnlocked, completionStars, potLevel, stageCompletion } from '../data/stages';
+import { mountScreen, bind, artIcon, coin, escapeHtml } from '../ui/dom';
+import { RECIPE_ICONS } from './LabScene';
+import { save, persist, applySettings } from '../save';
 import { txt, panel, button, Button } from '../ui/widgets';
 import { drawBackground } from '../ui/bg';
 
@@ -28,6 +30,7 @@ interface Enemy {
   boss: boolean;
   dead: boolean;
   flash: number; flashing: boolean;
+  aura?: Img;
   poisonDps: number; poisonT: number; poisonFx: number;
   bladeCd: number;
   shootT: number;
@@ -43,6 +46,11 @@ interface Num { t: Phaser.GameObjects.Text; busy: boolean; }
 
 const BLADE_R = 108;
 const STEP = 1 / 60;
+const HAND_FONT = '"Gaegu", "Apple SD Gothic Neo", cursive';
+// Painted sprites extend beyond the old geometric core radius. Keep attacks and
+// contact at their visible edges, while CORE_R still sizes the skewer pointer.
+const POT_HIT_R = 110;
+const ENEMY_ART_RADIUS = 1.7;
 
 // 아이콘 텍스처별 실제 그림 지름(px) → 원하는 크기로 맞추기 위한 배율
 const ICON_D: Record<string, number> = { ring: 240, core: 140, blade: 84, missile: 48 };
@@ -57,6 +65,12 @@ function compact<T extends { dead: boolean }>(arr: T[]) {
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
+  private stage: Stage | null = null;
+  private won = false;
+  private runSeconds = 0;
+  private earnedXp = 0;
+  private previousLevel = 1;
+  private domOverlay?: ReturnType<typeof mountScreen>;
   private state: State = 'play';
   private stats!: Stats;
   private hp = 0;
@@ -91,15 +105,23 @@ export class GameScene extends Phaser.Scene {
   private core!: Img;
   private barrel!: Img;
   private coreGlow!: Img;
+  private coreAura!: Img;
+  private lanternGlows: Img[] = [];
+  private steam!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private recoil = 0;
   private frostRing!: Img;
   private frostFill!: Img;
   private rangeG!: Phaser.GameObjects.Graphics;
   private fxG!: Phaser.GameObjects.Graphics;
+  private trailG!: Phaser.GameObjects.Graphics;
+  private shadowG!: Phaser.GameObjects.Graphics;
   private barG!: Phaser.GameObjects.Graphics;
 
   private hudWave!: Phaser.GameObjects.Text;
   private hudSub!: Phaser.GameObjects.Text;
   private hudHp!: Phaser.GameObjects.Text;
+  private hudHearts: Phaser.GameObjects.Text[] = [];
+  private hudCoin!: Phaser.GameObjects.Text;
   private hudG!: Phaser.GameObjects.Graphics;
   private hudStats!: Phaser.GameObjects.Text;
   private hudBoss!: Phaser.GameObjects.Text;
@@ -115,8 +137,9 @@ export class GameScene extends Phaser.Scene {
   private rng: () => number = Math.random;
   private dayKey = '';
 
-  init(data: { daily?: boolean }) {
+  init(data: { daily?: boolean; stage?: number }) {
     this.daily = !!data?.daily;
+    this.stage = !this.daily && data?.stage ? STAGES.find(s => s.id === data.stage && stageUnlocked(s.id, save.stages)) ?? STAGES[0] : null;
   }
 
   create() {
@@ -138,6 +161,8 @@ export class GameScene extends Phaser.Scene {
     this.rng = this.daily ? seededRng(daySeed(this.dayKey)) : Math.random;
 
     this.state = 'play';
+    this.time.paused = false;
+    this.won = false; this.runSeconds = 0; this.earnedXp = 0; this.previousLevel = potLevel(save.xp);
     this.stats = buildStats(lab);
     this.mod?.apply?.(this.stats);
     this.hp = this.shownHp = this.stats.maxHp;
@@ -152,16 +177,50 @@ export class GameScene extends Phaser.Scene {
     this.emitters = new Map();
     this.nums = [];
     this.overlay = undefined;
+    this.recoil = 0;
+
+    // 골목의 등불은 작게 흔들리고, 냄비의 붉은 불빛이 젖은 바닥을 덥힌다.
+    this.lanternGlows = [[0.14, 0.08], [0.85, 0.04], [0.055, 0.32], [0.94, 0.33], [0.06, 0.76], [0.91, 0.89]].map(([x, y]) =>
+      this.add.image(W * x, H * y, 'glow').setTint(0xffad4a).setAlpha(0.12).setScale(1.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(2));
+    this.add.particles(0, 0, 'sparkle', {
+      x: { min: 24, max: W - 24 }, y: { min: 140, max: H - 140 },
+      speedY: { min: -22, max: -8 }, speedX: { min: -8, max: 8 },
+      lifespan: { min: 1200, max: 2200 }, scale: { start: 0.16, end: 0 },
+      alpha: { start: 0.32, end: 0 }, frequency: 280, quantity: 1,
+      tint: 0xffd388, blendMode: 'ADD',
+    }).setDepth(3);
 
     // 기지
-    this.coreGlow = this.add.image(CORE_X, CORE_Y, 'glow').setTint(COLOR.cyan).setAlpha(0.35).setScale(1.3).setBlendMode(Phaser.BlendModes.ADD).setDepth(4);
+    this.coreGlow = this.add.image(CORE_X, CORE_Y + 18, 'glow').setTint(0xe75b22).setAlpha(0.48).setScale(2).setBlendMode(Phaser.BlendModes.ADD).setDepth(4);
+    this.coreAura = this.add.image(CORE_X, CORE_Y + 23, 'glow').setTint(0xffb33d).setAlpha(0.38).setScale(0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(18);
+    this.shadowG = this.add.graphics().setDepth(8);
     this.frostFill = this.add.image(CORE_X, CORE_Y, 'glow').setTint(0x7fdbff).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD).setDepth(5);
     this.frostRing = this.add.image(CORE_X, CORE_Y, 'ring').setTint(0x7fdbff).setAlpha(0).setDepth(5);
     this.rangeG = this.add.graphics().setDepth(6);
     this.barG = this.add.graphics().setDepth(11);
-    this.core = this.add.image(CORE_X, CORE_Y, 'core').setTint(COLOR.cyan).setScale(CORE_R / CORE_TEX_R).setDepth(20);
-    this.barrel = this.add.image(CORE_X, CORE_Y, 'barrel').setTint(0xbffcff).setScale(CORE_R / CORE_TEX_R).setDepth(21);
+    this.core = this.add.image(CORE_X, CORE_Y, 'pot').setDisplaySize(240, 240).setDepth(20);
+    this.barrel = this.add.image(CORE_X, CORE_Y, 'barrel').setScale(CORE_R / CORE_TEX_R).setDepth(21);
     this.fxG = this.add.graphics().setDepth(26).setBlendMode(Phaser.BlendModes.ADD);
+    this.trailG = this.add.graphics().setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+    this.steam = this.add.particles(CORE_X, CORE_Y - 39, 'steam', {
+      x: { min: -26, max: 26 }, speedX: { min: -20, max: 20 }, speedY: { min: -95, max: -60 },
+      lifespan: { min: 900, max: 1550 }, scale: { start: 0.38, end: 1.2 },
+      alpha: { start: 0.42, end: 0 }, frequency: 105, quantity: 1,
+      blendMode: 'ADD',
+    }).setDepth(23);
+    for (let i = 0; i < 3; i++) {
+      const x = CORE_X + (i - 1) * 25, y = CORE_Y - 102;
+      const wisp = this.add.image(x, y, 'steam-wisp').setScale(0.7 + i * 0.06).setAlpha(0).setDepth(22).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: wisp, y: { from: y + 10, to: y - 33 }, alpha: { from: 0, to: 0.72 },
+        scale: { from: 0.61, to: 0.91 }, duration: 1350 + i * 190, delay: i * 350,
+        yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
+    this.add.particles(CORE_X, CORE_Y - 40, 'sparkle', {
+      x: { min: -40, max: 40 }, speedY: { min: -40, max: -15 }, speedX: { min: -9, max: 9 },
+      lifespan: { min: 360, max: 700 }, scale: { start: 0.24, end: 0 },
+      alpha: { start: 0.6, end: 0 }, tint: 0xffe09a,
+      frequency: 200, quantity: 1, blendMode: 'ADD',
+    }).setDepth(23);
 
     for (let i = 0; i < 48; i++) {
       const t = txt(this, 0, 0, '', 22).setDepth(30).setVisible(false);
@@ -174,6 +233,7 @@ export class GameScene extends Phaser.Scene {
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.onHidden, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(Phaser.Core.Events.HIDDEN, this.onHidden, this);
+      this.domOverlay?.dispose(); this.domOverlay = undefined;
       this.tweens.killAll();
     });
 
@@ -181,49 +241,52 @@ export class GameScene extends Phaser.Scene {
     if (this.mod?.startCard) {
       this.time.delayedCall(400, () => this.showCards('epic', this.mod!.name, L('오늘의 도전: 영웅 카드 하나를 고르세요', "Today's rule: pick an epic card")));
     } else if ((lab.start ?? 0) > 0) {
-      this.time.delayedCall(400, () => this.showCards('rare', L('선행 연구', 'Head Start'), L('출발 전에 하나를 고르세요', 'Pick one before you start')));
+      this.time.delayedCall(400, () => this.showCards('rare', L('미리 손질', 'Prep ahead'), L('출발 전에 하나를 고르세요', 'Pick one before you start')));
     } else {
       this.time.delayedCall(400, () => this.startWave());
     }
     if (this.daily) this.banner(L(`일일 도전 · ${this.mod!.name}`, `Daily · ${this.mod!.name}`), COLOR.yellow, 0.6, 1600, 120);
-    this.time.delayedCall(1800, () => this.tip('intro', L('기지는 가까운 적을 자동으로 공격해요.\n웨이브를 버틸 때마다 카드를 골라 강해지세요!', 'Your base shoots the nearest enemy automatically.\nSurvive each wave and pick a card to grow stronger!')));
+    this.time.delayedCall(1800, () => this.tip('intro', L('냄비는 가까운 손님에게 자동으로 요리해요.\n한 차례 영업이 끝나면 새 레시피를 골라요!', 'Your pot serves the nearest hungry guest automatically.\nAfter each wave, pick a new recipe!')));
   }
 
   // ───────────────────────── 웨이브 흐름 ─────────────────────────
 
   private startWave() {
     this.wave++;
-    const { entries } = buildWave(this.wave, this.rng, this.mod?.count ?? 1);
+    const { entries } = buildWave(this.wave + (this.stage?.offset ?? 0), this.rng, (this.mod?.count ?? 1) * (this.stage ? 1 + (this.stage.id - 1) * 0.05 : 1));
     this.queue = entries;
     this.waveTime = 0;
     this.waveTotal = entries.length;
     this.spawned = 0;
     this.state = 'play';
     const boss = isBossWave(this.wave);
-    this.banner(boss ? `BOSS WAVE ${this.wave}` : `WAVE ${this.wave}`, boss ? COLOR.pink : COLOR.cyan);
-    if (boss) { const b = ENEMIES[bossForWave(this.wave)]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
-    if (boss) { sfx.boss(); this.cameras.main.flash(250, 120, 0, 40); } else sfx.waveStart();
+    this.banner(boss ? L('큰 손님 등장!', 'A HUNGRY GUEST!') : L(`${this.wave}번째 영업`, `WAVE ${this.wave}`), boss ? COLOR.pink : COLOR.cyan);
+    if (boss) { const b = ENEMIES[bossForWave(this.wave + (this.stage?.offset ?? 0))]; this.banner(b.boss!, b.color, 0.5, 900, 70); }
+    if (boss) { sfx.boss(); this.cameras.main.flash(250, 120, 0, 40); this.ringFx(CORE_X, CORE_Y, 280, 0xba76c6, 680, 0.25); }
+    else { sfx.waveStart(); this.burst(CORE_X, CORE_Y - 45, 0xffca70, 9, 'spark'); }
     if (!this.bot) music.play(boss ? 2 : 1);
     if (this.wave === 3) this.time.delayedCall(1500, () => this.tip('speed', L('너무 느긋하다면 오른쪽 위 x2 버튼으로\n게임 속도를 올릴 수 있어요.', 'Too slow? Tap the x2 button at the top right\nto speed up the game.')));
-    if (boss) this.time.delayedCall(2200, () => this.tip('boss', L('보스는 기지에 붙어서 계속 공격해요.\n처치하면 영웅 카드 확정 + 체력 회복!', 'Bosses keep attacking once they reach you.\nDefeat one for a guaranteed epic card + heal!')));
+    if (boss) this.time.delayedCall(2200, () => this.tip('boss', L('보스는 냄비에 붙어서 계속 공격해요.\n처치하면 영웅 카드 확정 + 체력 회복!', 'Bosses keep attacking once they reach you.\nDefeat one for a guaranteed epic card + heal!')));
   }
 
   private waveCleared() {
     this.state = 'between';
     this.wavesCleared = this.wave;
     sfx.waveClear();
+    if (this.stage && this.wavesCleared >= this.stage.waves) { this.gameOver(true); return; }
     this.heal(this.stats.maxHp * 0.25);
-    this.banner('CLEAR', COLOR.green, 0.8, 300);
+    this.burst(CORE_X, CORE_Y - 40, 0xffdc82, 12, 'confetti');
+    this.banner(L('맛있게 드세요!', 'SERVED!'), COLOR.green, 0.8, 300);
     const boss = isBossWave(this.wave);
     if (this.bot) { this.showCards(boss ? 'epic' : undefined, '', ''); return; }
     this.time.delayedCall(800, () => {
-      if (this.state === 'between') this.showCards(boss ? 'epic' : undefined, L(`웨이브 ${this.wave} 클리어!`, `Wave ${this.wave} cleared!`), boss ? L('보스 보상: 영웅 등급 이상 확정', 'Boss reward: epic or better guaranteed') : L('업그레이드를 하나 고르세요', 'Choose an upgrade'));
+      if (this.state === 'between') this.showCards(boss ? 'epic' : undefined, L(`새 레시피 발견!`, `A new recipe!`), boss ? L('보스 보상: 영웅 등급 이상 확정', 'Boss reward: epic or better guaranteed') : L('이번 영업에 쓸 비법을 골라주세요', 'Choose a recipe for this run'));
     });
   }
 
   private banner(str: string, color: number, scale = 1, hold = 900, dy = 0) {
     const y = CORE_Y - 390 + dy;
-    const t = txt(this, W / 2, y, str, 64 * scale, { color, glow: true }).setDepth(60).setScale(0.4).setAlpha(0);
+    const t = txt(this, W / 2, y, str, 64 * scale, { color, glow: true }).setFontFamily(HAND_FONT).setDepth(60).setScale(0.4).setAlpha(0);
     this.tweens.add({ targets: t, scale: 1, alpha: 1, duration: 260, ease: 'Back.Out' });
     this.tweens.add({ targets: t, alpha: 0, y: y - 40, delay: hold, duration: 400, onComplete: () => t.destroy() });
   }
@@ -245,6 +308,7 @@ export class GameScene extends Phaser.Scene {
     const st = this.stats;
     if (this.state === 'play') {
       this.waveTime += dt;
+      this.runSeconds += dt;
       while (this.queue.length && this.queue[0].t <= this.waveTime) {
         this.spawnEnemy(this.queue.shift()!.kind);
         this.spawned++;
@@ -295,7 +359,7 @@ export class GameScene extends Phaser.Scene {
     compact(this.missiles);
     compact(this.ebullets);
 
-    if (this.state === 'play' && !this.queue.length && !this.enemies.length) this.waveCleared();
+    if (this.state === 'play' && this.wave > 0 && !this.queue.length && !this.enemies.length) this.waveCleared();
   }
 
   // ───────────────────────── 적 ─────────────────────────
@@ -312,17 +376,23 @@ export class GameScene extends Phaser.Scene {
       else { p -= pw; x = -m; y = p - m; }
     }
     const boss = !!d.boss;
-    const hp = d.hp * hpMul(this.wave) * (boss ? 1 + 0.15 * (this.wave / 5 - 1) : 1) * (this.mod?.enemyHp ?? 1);
-    const s = this.img(d.tex, boss ? 9 : 10).setTint(d.color).setScale(d.r / SHAPE_R).setPosition(x, y);
+    const hp = d.hp * hpMul(this.wave + (this.stage?.offset ?? 0)) * (boss ? 1 + 0.15 * (this.wave / 5 - 1) : 1) * (this.mod?.enemyHp ?? 1);
+    const s = this.img(d.tex, boss ? 9 : 10).clearTint().setScale(d.r * 5 / 320).setPosition(x, y);
     const e: Enemy = {
       s, kind, x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       hp, maxHp: hp,
-      speed: d.speed * speedMul(this.wave) * (0.9 + Math.random() * 0.2) * (this.mod?.enemySpeed ?? 1),
+      speed: d.speed * speedMul(this.wave + (this.stage?.offset ?? 0)) * (0.9 + Math.random() * 0.2) * (this.mod?.enemySpeed ?? 1),
       r: d.r, dmg: d.dmg, color: d.color, boss, dead: false,
       flash: 0, flashing: false, poisonDps: 0, poisonT: 0, poisonFx: 0,
       bladeCd: 0, shootT: 1 + Math.random() * 1.5, attackT: 0,
-      spin: d.spin * (Math.random() < 0.5 ? -1 : 1),
+      spin: 0,
     };
+    if (boss) {
+      e.aura = this.img('glow', 8).setTint(0xa956c2).setAlpha(0.34).setScale(1.05).setBlendMode(Phaser.BlendModes.ADD).setPosition(x, y);
+      this.ringFx(x, y, d.r * 2.7, 0xc98aca, 580, 0.15);
+      this.burst(x, y, 0xffce76, 14, 'confetti');
+      this.cameras.main.shake(260, 0.006);
+    }
     if (kind === 'blinker') s.setAlpha(0.8);
     this.enemies.push(e);
     return e;
@@ -348,7 +418,7 @@ export class GameScene extends Phaser.Scene {
       const d = Math.hypot(dx, dy) || 1;
       let sp = e.speed;
       if (frostR2 && d * d < frostR2) sp *= 1 - st.frostSlow;
-      const contact = CORE_R + e.r;
+      const contact = POT_HIT_R + e.r * ENEMY_ART_RADIUS;
 
       // 특수 능력
       e.shootT -= dt;
@@ -375,7 +445,7 @@ export class GameScene extends Phaser.Scene {
         if (e.boss) {
           e.attackT -= dt;
           if (e.attackT <= 0) {
-            e.attackT = 1;
+            e.attackT = 1.8;
             this.hurt(e.dmg);
             e.kx = -(dx / d) * 160; e.ky = -(dy / d) * 160;
           }
@@ -384,6 +454,7 @@ export class GameScene extends Phaser.Scene {
           this.burst(e.x, e.y, e.color, 14, 'burst');
           e.dead = true;
           this.free(e.s);
+          if (e.aura) this.free(e.aura);
           continue;
         }
       }
@@ -393,14 +464,15 @@ export class GameScene extends Phaser.Scene {
       e.kx *= damp; e.ky *= damp;
       e.bladeCd -= dt;
 
-      e.s.setPosition(e.x, e.y);
-      if (e.spin) e.s.rotation += e.spin * dt;
+      const bob = Math.sin(this.time.now / (e.boss ? 240 : 180) + i * 1.7) * (e.boss ? 3 : 2);
+      e.s.setPosition(e.x, e.y + bob).setRotation(Math.sin(this.time.now / 290 + i * 1.13) * (e.boss ? 0.025 : 0.055));
+      e.aura?.setPosition(e.x, e.y).setAlpha(0.28 + Math.sin(this.time.now / 200) * 0.08);
       // 피격 번쩍임 (보스는 색이 사라지지 않게 살짝만)
       if (e.flash > 0) {
         e.flash -= dt;
         if (!e.flashing) { if (e.boss) e.s.setAlpha(0.65); else e.s.setTintFill(0xffffff); e.flashing = true; }
       } else if (e.flashing) {
-        if (e.boss) e.s.setAlpha(1); else e.s.setTint(e.color);
+        if (e.boss) e.s.setAlpha(1); else e.s.clearTint();
         e.flashing = false;
       }
     }
@@ -445,7 +517,11 @@ export class GameScene extends Phaser.Scene {
       if (b.dead) continue;
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.s.setPosition(b.x, b.y);
-      if ((b.x - CORE_X) ** 2 + (b.y - CORE_Y) ** 2 < CORE_R * CORE_R) {
+      if (b.x < -80 || b.x > W + 80 || b.y < -80 || b.y > H + 80) {
+        b.dead = true; this.free(b.s);
+        continue;
+      }
+      if ((b.x - CORE_X) ** 2 + (b.y - CORE_Y) ** 2 < POT_HIT_R * POT_HIT_R) {
         this.hurt(b.dmg);
         this.burst(b.x, b.y, COLOR.blue, 6, 'spark');
         b.dead = true; this.free(b.s);
@@ -470,12 +546,15 @@ export class GameScene extends Phaser.Scene {
     if (e.dead) return;
     e.dead = true;
     this.free(e.s);
+    if (e.aura) this.free(e.aura);
     this.kills++;
     if (this.stats.lifesteal) this.heal(this.stats.lifesteal);
     if (e.boss) {
       this.bossKills++;
       this.burst(e.x, e.y, e.color, 60, 'big');
       this.burst(e.x, e.y, 0xffffff, 30, 'big');
+      this.burst(e.x, e.y, 0xffcf75, 34, 'confetti');
+      this.sauceStain(e.x, e.y, 1.7);
       this.ringFx(e.x, e.y, 260, e.color, 600);
       this.cameras.main.shake(400, 0.012);
       this.cameras.main.flash(200, 255, 60, 140);
@@ -484,6 +563,8 @@ export class GameScene extends Phaser.Scene {
       this.heal(this.stats.maxHp * 0.25);
     } else {
       this.burst(e.x, e.y, e.color, e.r > 18 ? 18 : 10, 'burst');
+      this.burst(e.x, e.y, 0xee512d, e.r > 18 ? 7 : 4, 'sauce');
+      if (this.kills % 4 === 0) this.sauceStain(e.x, e.y, Math.max(0.5, e.r / 24));
       sfx.kill();
     }
     if (e.kind === 'splitter') {
@@ -519,8 +600,8 @@ export class GameScene extends Phaser.Scene {
       let a = Math.atan2(t.y + t.vy * lead - CORE_Y, t.x + t.vx * lead - CORE_X);
       if (i >= targets.length) a += (Math.floor(i / targets.length) % 2 ? 1 : -1) * 0.09 * Math.ceil(i / targets.length);
       const crit = Math.random() < st.critChance;
-      const x = CORE_X + Math.cos(a) * (CORE_R + 6), y = CORE_Y + Math.sin(a) * (CORE_R + 6);
-      const s = this.img('bullet', 15).setTint(crit ? COLOR.yellow : 0xbffcff).setScale(crit ? 0.9 : 0.65).setPosition(x, y).setBlendMode(Phaser.BlendModes.ADD);
+      const x = CORE_X + Math.cos(a) * (POT_HIT_R + 8), y = CORE_Y + Math.sin(a) * (POT_HIT_R + 8);
+      const s = this.img('sauce', 15).clearTint().setScale(crit ? 0.87 : 0.7).setPosition(x, y).setRotation(a);
       this.bullets.push({
         s, x, y, vx: Math.cos(a) * st.projSpeed, vy: Math.sin(a) * st.projSpeed,
         dmg: st.damage * (crit ? st.critMult : 1), crit, pierce: st.pierce, hit: [], life: 1.2, dead: false,
@@ -528,6 +609,8 @@ export class GameScene extends Phaser.Scene {
       if (i === 0) this.barrel.rotation = a + Math.PI / 2;
     }
     this.barrel.setScale((CORE_R / CORE_TEX_R) * 0.9);
+    this.recoil = 1;
+    this.burst(CORE_X + Math.cos(this.barrel.rotation - Math.PI / 2) * (POT_HIT_R + 8), CORE_Y + Math.sin(this.barrel.rotation - Math.PI / 2) * (POT_HIT_R + 8), 0xffca6d, 3, 'spark');
     sfx.shoot();
   }
 
@@ -554,7 +637,9 @@ export class GameScene extends Phaser.Scene {
 
   private onBulletHit(b: Bullet, e: Enemy, st: Stats) {
     const x = e.x, y = e.y;
-    this.burst(b.x, b.y, b.crit ? COLOR.yellow : 0xbffcff, 4, 'spark');
+    this.burst(b.x, b.y, b.crit ? 0xffeb98 : 0xffa84f, b.crit ? 12 : 5, 'spark');
+    this.burst(b.x, b.y, 0xe84b2d, b.crit ? 8 : 4, 'sauce');
+    if (b.crit) this.ringFx(b.x, b.y, 36, 0xffd571, 220, 0.35);
     sfx.hit();
     this.damageEnemy(e, b.dmg, b.crit);
     if (st.lv.splash) {
@@ -612,7 +697,7 @@ export class GameScene extends Phaser.Scene {
 
   private launchMissile(i: number, n: number) {
     const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.6 + (Math.random() - 0.5) * 0.3;
-    const s = this.img('missile', 15).setTint(COLOR.orange).setScale(0.5).setBlendMode(Phaser.BlendModes.ADD);
+    const s = this.img('missile', 15).clearTint().setScale(0.78);
     const m: Missile = { s, x: CORE_X, y: CORE_Y, vx: Math.cos(a) * 320, vy: Math.sin(a) * 320, target: null, life: 3.5, trail: 0, dead: false };
     m.target = this.pickMissileTarget(i);
     this.missiles.push(m);
@@ -703,7 +788,9 @@ export class GameScene extends Phaser.Scene {
     const dmg = amount * dmgMul(this.wave) * (1 - Math.min(0.75, this.stats.dmgReduce)) * (this.mod?.dmgTaken ?? 1);
     this.hp -= dmg;
     this.hurtFlash = 0.18;
-    this.num(CORE_X, CORE_Y - CORE_R - 10, `-${Math.round(dmg)}`, COLOR.red, 28);
+    this.burst(CORE_X, CORE_Y - 32, 0xff753c, 9, 'sauce');
+    this.ringFx(CORE_X, CORE_Y, 130, 0xff8151, 260, 0.35);
+    this.num(CORE_X, CORE_Y - POT_HIT_R - 10, `-${Math.round(dmg)}`, COLOR.red, 28);
     this.cameras.main.shake(140, 0.005 + Math.min(0.01, dmg / 400));
     sfx.hurt();
     vibrate(25);
@@ -729,7 +816,12 @@ export class GameScene extends Phaser.Scene {
     arr.push(im);
   }
 
-  private burst(x: number, y: number, color: number, n: number, kind: 'spark' | 'burst' | 'big' | 'drip' | 'trail') {
+  private sauceStain(x: number, y: number, size = 1) {
+    const stain = this.img('sauce-stain', 7).clearTint().setPosition(x, y + 9).setScale(0.2 * size).setAlpha(0.52);
+    this.tweens.add({ targets: stain, scale: 0.8 * size, alpha: 0, duration: 1500, ease: 'Quad.Out', onComplete: () => this.free(stain) });
+  }
+
+  private burst(x: number, y: number, color: number, n: number, kind: 'spark' | 'burst' | 'big' | 'drip' | 'trail' | 'sauce' | 'confetti') {
     const key = `${kind}:${color}`;
     let em = this.emitters.get(key);
     if (!em) {
@@ -739,8 +831,13 @@ export class GameScene extends Phaser.Scene {
         big: { speed: { min: 100, max: 520 }, lifespan: { min: 400, max: 1000 }, scale: { start: 1, end: 0 } },
         drip: { speed: { min: 10, max: 40 }, lifespan: 400, scale: { start: 0.35, end: 0 }, gravityY: 60 },
         trail: { speed: { min: 0, max: 20 }, lifespan: 260, scale: { start: 0.4, end: 0 } },
+        sauce: { speed: { min: 70, max: 210 }, lifespan: { min: 250, max: 520 }, scale: { start: 0.35, end: 0.06 }, gravityY: 180 },
+        confetti: { speed: { min: 90, max: 260 }, lifespan: { min: 400, max: 900 }, scale: { start: 0.5, end: 0.05 }, gravityY: 80 },
       }[kind];
-      em = this.add.particles(0, 0, 'dot', { ...cfg, alpha: { start: 1, end: 0 }, tint: color, blendMode: 'ADD', emitting: false }).setDepth(25);
+      em = this.add.particles(0, 0, kind === 'sauce' ? 'sauce' : kind === 'confetti' ? 'sparkle' : 'dot', {
+        ...cfg, alpha: { start: 0.92, end: 0 }, tint: color,
+        blendMode: kind === 'sauce' ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD, emitting: false,
+      }).setDepth(25);
       this.emitters.set(key, em);
     }
     em.explode(n, x, y);
@@ -767,13 +864,38 @@ export class GameScene extends Phaser.Scene {
   private renderFrame(dt: number) {
     const st = this.stats;
     // 기지
-    this.core.rotation += dt * 0.4;
+    this.recoil = Math.max(0, this.recoil - dt * 7);
+    this.core.setScale((240 / 320) * (1 + this.recoil * 0.035));
+    this.core.rotation = Math.sin(this.time.now / 350) * 0.008 + this.recoil * 0.015;
     this.barrel.setScale(Phaser.Math.Linear(this.barrel.scale, CORE_R / CORE_TEX_R, Math.min(1, dt * 12)));
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
-    const tint = this.hurtFlash > 0 ? COLOR.red : COLOR.cyan;
-    this.core.setTint(tint);
-    this.coreGlow.setTint(tint).setAlpha(0.3 + Math.sin(this.time.now / 400) * 0.06);
+    const tint = this.hurtFlash > 0 ? COLOR.red : 0xd94b26;
+    if (this.hurtFlash > 0) this.core.setTint(0xffaa88); else this.core.clearTint();
+    this.coreGlow.setTint(tint).setAlpha(0.45 + Math.sin(this.time.now / 330) * 0.07);
+    this.coreAura.setAlpha(0.35 + Math.sin(this.time.now / 240) * 0.08 + this.recoil * 0.18);
+    this.lanternGlows.forEach((glow, i) => glow.setAlpha(0.12 + Math.sin(this.time.now / (350 + i * 55) + i * 2) * 0.03));
     if (st.lv.frost) this.frostRing.setAlpha(0.3 + Math.sin(this.time.now / 300) * 0.08);
+
+    this.shadowG.clear();
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      this.shadowG.fillStyle(0x130c14, e.boss ? 0.55 : 0.4);
+      this.shadowG.fillEllipse(e.x, e.y + e.r * 0.82, e.r * 2.3, e.r * 0.75);
+    }
+
+    this.trailG.clear();
+    for (const b of this.bullets) {
+      if (b.dead) continue;
+      const d = Math.hypot(b.vx, b.vy) || 1;
+      const tx = b.x - b.vx / d * (b.crit ? 45 : 34), ty = b.y - b.vy / d * (b.crit ? 45 : 34);
+      this.trailG.lineStyle(b.crit ? 13 : 9, 0xf35222, 0.24).lineBetween(tx, ty, b.x, b.y);
+      this.trailG.lineStyle(b.crit ? 4 : 3, b.crit ? 0xffde70 : 0xff9e4d, 0.75).lineBetween(tx + (b.x - tx) * 0.5, ty + (b.y - ty) * 0.5, b.x, b.y);
+    }
+    for (const m of this.missiles) {
+      if (m.dead) continue;
+      const d = Math.hypot(m.vx, m.vy) || 1;
+      this.trailG.lineStyle(12, 0xff9938, 0.2).lineBetween(m.x - m.vx / d * 48, m.y - m.vy / d * 48, m.x, m.y);
+    }
 
     // 번개
     this.fxG.clear();
@@ -802,7 +924,9 @@ export class GameScene extends Phaser.Scene {
       this.barG.fillStyle(0x000000, 0.7).fillRoundedRect(60, 128, W - 120, 16, 8);
       this.barG.fillStyle(boss.color, 1).fillRoundedRect(60, 128, (W - 120) * Math.max(0.02, boss.hp / boss.maxHp), 16, 8);
       this.barG.lineStyle(2, boss.color, 0.8).strokeRoundedRect(60, 128, W - 120, 16, 8);
-      this.hudBoss.setText(ENEMIES[boss.kind].boss!).setColor(hex(boss.color)).setVisible(true);
+      const bossName = ENEMIES[boss.kind].boss!;
+      if (this.hudBoss.text !== bossName) this.hudBoss.setText(bossName).setColor(hex(boss.color));
+      this.hudBoss.setVisible(true);
     } else this.hudBoss.setVisible(false);
 
     this.updateHud(dt);
@@ -818,53 +942,79 @@ export class GameScene extends Phaser.Scene {
 
   private buildHud() {
     const top = this.add.graphics().setDepth(49);
-    top.fillStyle(COLOR.bg, 0.85).fillRect(0, 0, W, 110);
-    top.lineStyle(2, COLOR.cyan, 0.25).lineBetween(0, 110, W, 110);
-    top.fillStyle(COLOR.bg, 0.85).fillRect(0, H - 120, W, 120);
-    top.lineStyle(2, COLOR.cyan, 0.25).lineBetween(0, H - 120, W, H - 120);
+    top.fillStyle(0x171017, 0.9).fillRoundedRect(6, 7, W - 12, 105, 13);
+    top.fillStyle(0x51301d, 0.98).fillRoundedRect(10, 10, W - 20, 97, 11);
+    top.lineStyle(3, 0xa76438, 0.95).strokeRoundedRect(10, 10, W - 20, 97, 11);
+    top.lineStyle(2, 0x7a4227, 0.65).lineBetween(18, 73, W - 18, 73);
+    top.lineStyle(1, 0xe19d55, 0.22).lineBetween(22, 20, W - 22, 20);
+    top.fillStyle(0x2c1b18, 0.96).fillRoundedRect(20, 21, 236, 77, 10);
+    top.lineStyle(2, 0xd1955d, 0.65).strokeRoundedRect(20, 21, 236, 77, 10);
+    top.fillStyle(0xe2aa67, 0.8);
+    for (const x of [17, W - 17]) for (const y of [18, 99]) top.fillCircle(x, y, 2.6);
+    top.fillStyle(0x332019, 0.94).fillRoundedRect(0, H - 112, W, 116, 12);
+    top.lineStyle(3, 0x9b5b36, 0.9).lineBetween(0, H - 111, W, H - 111);
+    top.lineStyle(1, 0xe0a261, 0.2).lineBetween(8, H - 104, W - 8, H - 104);
 
-    this.hudWave = txt(this, 28, 40, 'WAVE 1', 32, { color: COLOR.cyan, align: 'left', glow: true }).setDepth(50);
-    this.hudSub = txt(this, 28, 80, '', 20, { color: COLOR.gray, align: 'left', bold: false }).setDepth(50);
+    this.add.image(48, 59, 'rice').setDisplaySize(49, 49).setDepth(50);
+    this.hudWave = txt(this, 148, 47, 'WAVE 1', 38, { color: 0xffebbb, glow: true }).setFontFamily(HAND_FONT).setDepth(50);
+    this.hudSub = txt(this, 148, 80, '', 20, { color: 0xe6bd91, bold: false }).setFontFamily(HAND_FONT).setDepth(50);
     this.hudG = this.add.graphics().setDepth(50);
-    this.hudHp = txt(this, 370, 44, '', 20).setDepth(51);
-    this.hudBoss = txt(this, W / 2, 162, '', 20, { glow: true }).setDepth(50).setVisible(false);
-    this.hudStats = txt(this, W / 2, H - 35, '', 20, { color: COLOR.gray, bold: false }).setDepth(50);
+    this.hudHearts = [0, 1, 2].map(i => txt(this, 296 + i * 51, 49, '♥', 43, { color: 0xff7161, glow: true }).setDepth(51));
+    this.hudHp = txt(this, 348, 84, '', 17, { color: 0xf5d8b1, bold: false }).setDepth(51);
+    this.hudCoin = txt(this, 492, 50, '', 20, { color: 0xffd47b }).setDepth(51);
+    top.fillStyle(0xffc264, 1).fillCircle(463, 50, 14);
+    top.lineStyle(3, 0xffe4a1, 0.95).strokeCircle(463, 50, 10);
+    top.fillStyle(0x895323, 0.9).fillCircle(463, 50, 3);
+    this.hudBoss = txt(this, W / 2, 162, '', 24, { glow: true }).setFontFamily(HAND_FONT).setDepth(50).setVisible(false);
+    this.hudStats = txt(this, W / 2, H - 33, '', 18, { color: 0xf0d7b3, bold: false }).setDepth(50);
     this.abilityRow = this.add.container(0, H - 80).setDepth(50);
 
-    this.speedBtn = button(this, 588, 55, 76, 62, 'x1', COLOR.yellow, () => {
+    this.speedBtn = button(this, 577, 56, 71, 61, 'x1', COLOR.yellow, () => {
       this.speedMode = this.speedMode === 1 ? 2 : 1;
       this.speedBtn.setLabel(`x${this.speedMode}`);
     }, 26).setDepth(52) as Button;
-    button(this, 674, 55, 76, 62, 'II', COLOR.white, () => this.pause(), 26).setDepth(52);
+    button(this, 659, 56, 71, 61, 'Ⅱ', COLOR.white, () => this.pause(), 27).setDepth(52);
   }
 
   private updateHud(dt: number) {
     const st = this.stats;
     this.shownHp = Phaser.Math.Linear(this.shownHp, this.hp, Math.min(1, dt * 10));
-    this.hudWave.setText(`WAVE ${Math.max(1, this.wave)}`);
+    const waveText = L(`${Math.max(1, this.wave)}번째 영업`, `WAVE ${Math.max(1, this.wave)}`);
+    if (this.hudWave.text !== waveText) this.hudWave.setText(waveText);
     const left = this.queue.length + this.enemies.length;
-    this.hudSub.setText((this.daily ? `${L('일일', 'Daily')} · ` : '') + (this.state === 'play' ? L(`남은 적 ${left}`, `Enemies ${left}`) : ''));
+    const subText = (this.daily ? `${L('일일', 'Daily')} · ` : '') + (this.state === 'play' ? L(`손님 ${left}${this.stage ? ' · ' + this.stage.waves + '차까지' : ''}`, `Guests ${left}${this.stage ? ' · / ' + this.stage.waves : ''}`) : '');
+    if (this.hudSub.text !== subText) this.hudSub.setText(subText);
 
     const g = this.hudG;
     g.clear();
-    const bx = 240, bw = 260, by = 32, bh = 26;
     const ratio = Math.max(0, this.shownHp / st.maxHp);
-    const col = ratio > 0.5 ? COLOR.green : ratio > 0.25 ? COLOR.yellow : COLOR.red;
-    g.fillStyle(0x000000, 0.6).fillRoundedRect(bx, by, bw, bh, 8);
-    g.fillStyle(col, 0.9).fillRoundedRect(bx, by, Math.max(8, bw * ratio), bh, 8);
-    g.lineStyle(2, col, 1).strokeRoundedRect(bx, by, bw, bh, 8);
-    this.hudHp.setText(`${Math.ceil(this.hp)} / ${Math.round(st.maxHp)}`);
+    const filledHearts = Math.ceil(ratio * 3);
+    this.hudHearts.forEach((heart, i) => {
+      const full = i < filledHearts;
+      const symbol = full ? '♥' : '♡';
+      if (heart.text !== symbol) heart.setText(symbol).setColor(hex(full ? 0xff7161 : 0x9d7770));
+    });
+    const hpText = `${Math.ceil(this.hp)} / ${Math.round(st.maxHp)}`;
+    if (this.hudHp.text !== hpText) this.hudHp.setText(hpText);
+    const coinText = save.gems.toLocaleString();
+    if (this.hudCoin.text !== coinText) this.hudCoin.setText(coinText);
     // 웨이브 진행도
     const prog = this.waveTotal ? this.spawned / this.waveTotal : 0;
-    g.fillStyle(0xffffff, 0.1).fillRect(bx, 72, bw, 6);
-    g.fillStyle(COLOR.cyan, 0.8).fillRect(bx, 72, bw * prog, 6);
+    g.fillStyle(0xb17647, 0.45).fillRoundedRect(30, 100, 215, 4, 2);
+    g.fillStyle(0xffcb77, 0.95).fillRoundedRect(30, 100, Math.max(1, 215 * prog), 4, 2);
   }
 
   private onStatsChanged() {
     const st = this.stats;
     // 사거리 표시
     this.rangeG.clear();
-    this.rangeG.lineStyle(2, COLOR.cyan, 0.12).strokeCircle(CORE_X, CORE_Y, st.range);
+    this.rangeG.lineStyle(2, 0xf9c37a, 0.08).strokeCircle(CORE_X, CORE_Y, st.range);
+    this.rangeG.lineStyle(3, 0xffd89a, 0.65);
+    for (let i = 0; i < 64; i += 2) {
+      const a = i / 64 * Math.PI * 2, b = (i + 0.9) / 64 * Math.PI * 2;
+      this.rangeG.lineBetween(CORE_X + Math.cos(a) * st.range, CORE_Y + Math.sin(a) * st.range,
+        CORE_X + Math.cos(b) * st.range, CORE_Y + Math.sin(b) * st.range);
+    }
     // 냉기장
     if (st.lv.frost) {
       this.frostRing.setScale(st.frostRadius / RING_R).setAlpha(0.35);
@@ -872,7 +1022,7 @@ export class GameScene extends Phaser.Scene {
     }
     // 칼날 개수 맞추기
     const want = st.lv.blades ? st.bladeCount : 0;
-    while (this.blades.length < want) this.blades.push(this.add.image(CORE_X, CORE_Y, 'blade').setTint(COLOR.purple).setScale(0.55).setDepth(12).setBlendMode(Phaser.BlendModes.ADD));
+    while (this.blades.length < want) this.blades.push(this.add.image(CORE_X, CORE_Y, 'blade').setScale(0.65).setDepth(12));
     this.hp = Math.min(this.hp, st.maxHp);
 
     this.hudStats.setText(L(`공격 ${Math.round(st.damage)}  ·  속도 ${st.fireRate.toFixed(1)}/s  ·  사거리 ${Math.round(st.range)}  ·  치명 ${Math.round(st.critChance * 100)}%`, `DMG ${Math.round(st.damage)}  ·  SPD ${st.fireRate.toFixed(1)}/s  ·  RNG ${Math.round(st.range)}  ·  CRIT ${Math.round(st.critChance * 100)}%`));
@@ -923,71 +1073,25 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.78).setInteractive();
-    const t1 = txt(this, W / 2, 250 + OY, title, 46, { color: COLOR.cyan, glow: true });
-    const t2 = txt(this, W / 2, 310 + OY, subtitle, 22, { color: COLOR.gray, bold: false });
-    o.add([dim, t1, t2]);
-
-    let accept = false;
-    this.time.delayedCall(350, () => { accept = true; });
-
-    cards.forEach((card, i) => {
-      const y = 480 + OY + i * 215;
-      const c = this.cardView(card, y, () => {
-        if (!accept) return;
-        accept = false;
-        this.tweens.add({ targets: c, scale: 1.06, duration: 120, yoyo: true });
-        o.each((ch: Phaser.GameObjects.GameObject) => {
-          if (ch !== c && ch !== dim) this.tweens.add({ targets: ch, alpha: 0, duration: 200 });
-        });
-        this.time.delayedCall(260, () => this.choose(card));
-      });
-      o.add(c);
-      c.setAlpha(0).setScale(0.85);
-      this.tweens.add({ targets: c, alpha: 1, scale: 1, duration: 260, delay: 80 + i * 90, ease: 'Back.Out' });
-    });
-
-    if (this.rerollsLeft > 0) {
-      const rb = button(this, W / 2, 1150 + OY, 320, 76, L(`새로고침 (${this.rerollsLeft})`, `Reroll (${this.rerollsLeft})`), COLOR.gray, () => {
-        if (!accept) return;
-        this.rerollsLeft--;
-        this.closeOverlay();
-        this.showCards(minRarity, title, subtitle);
-      }, 26);
-      o.add(rb);
-    }
+    const icons: Record<string, string> = { ...RECIPE_ICONS,
+      multi: RECIPE_ICONS.rate, pierce: RECIPE_ICONS.rate, critdmg: RECIPE_ICONS.dmg,
+      lifesteal: '♡', splash: RECIPE_ICONS.regen, frost: '❄', poison: '🌿', chain: '✦',
+      blades: RECIPE_ICONS.rate, missiles: '🥟', nova: RECIPE_ICONS.hp, execute: '✦',
+      overdrive: RECIPE_ICONS.dmg, barrage: RECIPE_ICONS.rate, fortress: RECIPE_ICONS.hp,
+      glass: RECIPE_ICONS.dmg, repair: RECIPE_ICONS.regen,
+    };
+    const view = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${L('오늘의 비밀 레시피', 'TONIGHT’S SECRET RECIPE')}</p><h1>${escapeHtml(title || L('새 레시피 발견!', 'A new recipe!'))}</h1><p class="subtitle">${escapeHtml(subtitle)}</p><span class="run-level">${L('영업', 'RUN')} Lv. ${Math.max(1, this.wave)} → ${Math.max(1, this.wave) + 1}</span><div class="recipe-choices">${cards.map((card, i) => `<button class="recipe-choice" data-card="${i}" aria-pressed="${i === 0}"><span class="choice-emoji" aria-hidden="true">${icons[card.id] ?? '🥣'}</span><div><span class="rarity ${card.rarity}">${RARITY[card.rarity].name}</span><h3>${escapeHtml(card.name)}</h3><p>${escapeHtml(card.desc(this.stats))}</p></div><span class="selection-dot" aria-hidden="true">${i === 0 ? '✓' : '○'}</span></button>`).join('')}</div><button class="reroll" data-action="reroll" ${this.rerollsLeft ? '' : 'disabled'}>↻ ${L('다시 고르기', 'New recipes')} · ${this.rerollsLeft}</button><button class="primary" data-action="confirm">${L('이 레시피로!', 'Cook this recipe!')}</button><p class="overlay-note">${L('선택한 효과는 이번 영업에만 적용돼요', 'These effects last for this run only')}</p></section>`, 'game-overlay recipe-overlay');
+    this.domOverlay = view;
+    let selected: Card | undefined = cards[0];
+    let accepted = false;
+    view.root.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b => b.addEventListener('click', () => {
+      selected = cards[Number(b.dataset.card)];
+      view.root.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(other => { const on = other === b; other.setAttribute('aria-pressed', String(on)); other.querySelector('.selection-dot')!.textContent = on ? '✓' : '○'; });
+      view.root.querySelector<HTMLButtonElement>('[data-action="confirm"]')!.disabled = false;
+    }));
+    bind(view.root, 'confirm', () => { if (!selected || accepted) return; accepted = true; this.choose(selected); });
+    bind(view.root, 'reroll', () => { if (!this.rerollsLeft || accepted) return; this.rerollsLeft--; this.closeOverlay(); this.showCards(minRarity, title, subtitle); });
     sfx.pick();
-  }
-
-  private cardView(card: Card, y: number, onPick: () => void) {
-    const st = this.stats;
-    const col = RARITY[card.rarity].color;
-    const w = 640, h = 190;
-    const c = this.add.container(W / 2, y);
-    if (card.rarity === 'epic' || card.rarity === 'legendary') {
-      const glow = this.add.image(0, 0, 'glow').setTint(col).setBlendMode(Phaser.BlendModes.ADD).setScale(3.2, 1.2).setAlpha(0.18);
-      c.add(glow);
-      this.tweens.add({ targets: glow, alpha: 0.32, duration: 700, yoyo: true, repeat: -1 });
-    }
-    const g = this.add.graphics();
-    panel(g, 0, 0, w, h, col, 0x0d1224, 0.97, 20, card.rarity === 'common' ? 2 : 3);
-    const iconBg = this.add.image(-236, 0, 'glow').setTint(col).setAlpha(0.35).setScale(0.8).setBlendMode(Phaser.BlendModes.ADD);
-    const icon = this.add.image(-236, 0, card.icon).setTint(col).setScale(iconScale(card.icon, 72));
-    const name = txt(this, -150, -44, card.name, 34, { align: 'left', color: 0xffffff });
-    const tag = txt(this, w / 2 - 24, -62, RARITY[card.rarity].name, 20, { align: 'right', color: col });
-    const desc = txt(this, -150, 30, card.desc(st), 23, { align: 'left', color: 0xc7cde0, bold: false, lineSpacing: 6 });
-    c.add([g, iconBg, icon, name, tag, desc]);
-    if (card.ability) {
-      const cur = st.lv[card.ability];
-      const lvText = cur ? `Lv.${cur} → ${cur + 1}` : 'NEW';
-      c.add(txt(this, w / 2 - 24, 62, lvText, 20, { align: 'right', color: cur ? COLOR.gray : COLOR.green }));
-    }
-    const zone = this.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
-    zone.on('pointerup', onPick);
-    c.add(zone);
-    return c;
   }
 
   private choose(card: Card) {
@@ -999,6 +1103,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private closeOverlay() {
+    this.domOverlay?.dispose();
+    this.domOverlay = undefined;
     this.overlay?.destroy();
     this.overlay = undefined;
   }
@@ -1014,57 +1120,55 @@ export class GameScene extends Phaser.Scene {
     if (this.state !== 'play' && this.state !== 'between') return;
     const prev = this.state;
     this.state = 'paused';
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.8).setInteractive();
-    const g = this.add.graphics();
-    panel(g, W / 2, 600 + OY, 560, 700, COLOR.cyan);
-    const st = this.stats;
-    const lines = [
-      `${L('공격력', 'Damage')}  ${Math.round(st.damage)}`,
-      `${L('공격 속도', 'Attack speed')}  ${st.fireRate.toFixed(2)}/s`,
-      `${L('사거리', 'Range')}  ${Math.round(st.range)}`,
-      `${L('발사체', 'Projectiles')}  ${st.multishot}   ${L('관통', 'Pierce')}  ${st.pierce}`,
-      `${L('치명타', 'Crit')}  ${Math.round(st.critChance * 100)}% × ${st.critMult.toFixed(1)}`,
-      `${L('재생', 'Regen')}  ${st.regen.toFixed(1)}/s   ${L('피해 감소', 'Armor')}  ${Math.round(Math.min(0.75, st.dmgReduce) * 100)}%`,
-    ].join('\n');
-    o.add([
-      dim, g,
-      txt(this, W / 2, 320 + OY, L('일시정지', 'PAUSED'), 48, { color: COLOR.cyan, glow: true }),
-      txt(this, W / 2, 500 + OY, lines, 24, { color: 0xc7cde0, bold: false, lineSpacing: 12 }),
-      button(this, W / 2, 710 + OY, 400, 86, L('계속하기', 'Resume'), COLOR.cyan, () => { this.closeOverlay(); this.state = prev; }),
-      button(this, W / 2, 810 + OY, 400, 72, L('설정', 'Settings'), COLOR.white, () => openSettings(this), 26),
-      button(this, W / 2, 900 + OY, 400, 72, L('포기하기', 'Give up'), COLOR.pink, () => { this.closeOverlay(); this.state = prev; this.hp = 0; this.gameOver(); }, 26),
-    ]);
+    this.time.paused = true;
+    const view = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${L('잠깐 쉬어가요', 'A LITTLE BREAK')}</p><h1>${L('잠시 영업 준비 중', 'Back in a moment')}</h1><p class="subtitle">${L('냄비가 식기 전에 돌아오세요.', 'Your warm little pot will be waiting.')}</p>${artIcon('pot', 'result-pot')}<div class="receipt"><div>${L('매운맛', 'Damage')}<b>${Math.round(this.stats.damage)}</b></div><div>${L('손놀림', 'Attack speed')}<b>${this.stats.fireRate.toFixed(1)}/s</b></div><div>${L('꼬치 수', 'Projectiles')}<b>${this.stats.multishot}</b></div></div><div class="result-buttons"><button class="primary" data-action="resume">${L('계속 영업하기', 'Keep cooking')}</button><button class="paper-button" data-action="sound">${L('효과음', 'Sound effects')} · ${save.sound ? 'ON' : 'OFF'}</button><button class="paper-button" data-action="music">${L('배경음악', 'Music')} · ${save.music ? 'ON' : 'OFF'}</button><button class="text-button" data-action="giveup">${L('오늘은 여기까지', 'Close for tonight')}</button></div></section>`, 'game-overlay');
+    this.domOverlay = view;
+    bind(view.root, 'resume', () => { this.closeOverlay(); this.time.paused = false; this.state = prev; });
+    for (const key of ['sound', 'music'] as const) bind(view.root, key, () => { save[key] = !save[key]; persist(); applySettings(); view.root.querySelector(`[data-action="${key}"]`)!.textContent = `${key === 'sound' ? L('효과음', 'Sound effects') : L('배경음악', 'Music')} · ${save[key] ? 'ON' : 'OFF'}`; });
+    bind(view.root, 'giveup', () => { this.closeOverlay(); this.time.paused = false; this.state = prev; this.hp = 0; this.gameOver(); });
   }
 
   // 처음 한 번만 보여주는 도움말
   private tip(key: string, text: string) {
     if (this.bot || save.tips[key] || this.state === 'over') return;
+    if (this.state === 'cards') {
+      this.time.delayedCall(500, () => this.tip(key, text));
+      return;
+    }
     save.tips[key] = true;
     persist();
     const y = H - 240;
     const c = this.add.container(W / 2, y).setDepth(70).setAlpha(0);
     const g = this.add.graphics();
-    panel(g, 0, 0, 620, 110, COLOR.yellow, 0x0d1224, 0.92, 16, 2);
+    panel(g, 0, 0, 620, 110, COLOR.yellow, 0x392b23, 0.92, 16, 2);
     c.add([g, txt(this, 0, 0, text, 23, { color: 0xffffff, bold: false, lineSpacing: 8 })]);
     this.tweens.add({ targets: c, alpha: 1, y: y - 10, duration: 300 });
     this.tweens.add({ targets: c, alpha: 0, delay: 5200, duration: 400, onComplete: () => c.destroy() });
   }
 
-  private gameOver() {
+  private gameOver(victory = false) {
     if (this.state === 'over') return;
     this.state = 'over';
+    this.won = victory;
     this.closeOverlay();
     if (!this.bot) music.play(0);
-    sfx.lose();
-    vibrate(250);
-    this.burst(CORE_X, CORE_Y, COLOR.cyan, 80, 'big');
-    this.burst(CORE_X, CORE_Y, 0xffffff, 40, 'big');
-    this.ringFx(CORE_X, CORE_Y, 420, COLOR.cyan, 900);
-    this.cameras.main.shake(600, 0.02);
-    this.cameras.main.flash(300, 255, 255, 255);
-    this.core.setVisible(false); this.barrel.setVisible(false); this.coreGlow.setVisible(false);
+    if (victory) sfx.waveClear(); else sfx.lose();
+    vibrate(victory ? 70 : 250);
+    if (victory) {
+      this.burst(CORE_X, CORE_Y - 45, 0xffd379, 52, 'confetti');
+      this.burst(CORE_X, CORE_Y - 45, 0xf26a43, 30, 'sauce');
+      this.ringFx(CORE_X, CORE_Y, 320, 0xffcb70, 750, 0.18);
+      this.time.delayedCall(240, () => this.burst(CORE_X, CORE_Y - 85, 0xffefb7, 36, 'confetti'));
+      this.cameras.main.flash(230, 255, 195, 102);
+    } else {
+      this.burst(CORE_X, CORE_Y, 0xdb5937, 65, 'big');
+      this.burst(CORE_X, CORE_Y, 0xffd1a1, 30, 'big');
+      this.ringFx(CORE_X, CORE_Y, 310, COLOR.red, 850);
+      this.cameras.main.shake(600, 0.02);
+      this.cameras.main.flash(300, 255, 255, 255);
+    }
+    this.core.setVisible(victory); this.barrel.setVisible(victory); this.coreGlow.setVisible(victory); this.coreAura.setVisible(victory);
+    if (!victory) this.steam.stop();
     for (const b of this.blades) b.setVisible(false);
 
     let gems = 0;
@@ -1090,6 +1194,13 @@ export class GameScene extends Phaser.Scene {
       newBest = reached > save.best;
       if (newBest) save.best = reached;
     }
+    if (victory && this.stage) {
+      const result = stageCompletion(save.stages[this.stage.id] ?? 0, this.hp, this.stats.maxHp, this.stage.reward);
+      gems += result.reward;
+      save.stages[this.stage.id] = result.stars;
+    }
+    this.earnedXp = this.wavesCleared * 12 + this.kills * 2;
+    save.xp += this.earnedXp;
     save.gems += gems;
     save.runs++;
     persist();
@@ -1098,34 +1209,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showResults(reached: number, gems: number, newBest: boolean) {
-    const o = this.add.container(0, 0).setDepth(100);
-    this.overlay = o;
-    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.82).setInteractive();
-    const g = this.add.graphics();
-    panel(g, W / 2, 610 + OY, 580, 760, COLOR.pink);
-    const gem = this.add.image(W / 2 - 90, 610 + OY, 'e_diamond').setTint(COLOR.cyan).setScale(0.45);
-    const items: Phaser.GameObjects.GameObject[] = [
-      dim, g,
-      txt(this, W / 2, 310 + OY, this.daily ? L(`일일 도전 · ${this.mod!.name}`, `Daily · ${this.mod!.name}`) : L('기지 파괴', 'BASE DESTROYED'), this.daily ? 40 : 56, { color: this.daily ? COLOR.yellow : COLOR.pink, glow: true }),
-      txt(this, W / 2, 420 + OY, L(`웨이브 ${reached}`, `Wave ${reached}`), 64, { color: 0xffffff }),
-      txt(this, W / 2, 490 + OY, L(`처치 ${this.kills}`, `Kills ${this.kills}`), 26, { color: COLOR.gray, bold: false }),
-      gem,
-      txt(this, W / 2 - 60, 610 + OY, `+${gems}`, 44, { color: COLOR.cyan, align: 'left', glow: true }),
-      button(this, W / 2, 760 + OY, 440, 96, L('다시 도전', 'Retry'), COLOR.cyan, () => this.scene.restart({ daily: this.daily }), 34),
-      button(this, W / 2 - 115, 880 + OY, 210, 80, L('연구소', 'Lab'), COLOR.purple, () => this.scene.start('Lab'), 26),
-      button(this, W / 2 + 115, 880 + OY, 210, 80, L('메인', 'Menu'), COLOR.white, () => this.scene.start('Menu'), 26),
-    ];
-    if (!save.tips.lab) {
-      save.tips.lab = true; persist();
-      items.push(txt(this, W / 2, 680 + OY, L('보석으로 연구소에서 영구 강화할 수 있어요!', 'Spend gems in the Lab for permanent upgrades!'), 21, { color: COLOR.purple, bold: false }));
-    }
-    if (newBest) {
-      const nb = txt(this, W / 2, 545 + OY, this.daily ? L('오늘의 최고 기록!', "Today's best!") : L('최고 기록 갱신!', 'New record!'), 26, { color: COLOR.yellow, glow: true });
-      this.tweens.add({ targets: nb, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
-      items.push(nb);
-    }
-    o.add(items);
-    o.setAlpha(0);
-    this.tweens.add({ targets: o, alpha: 1, duration: 300 });
+    const stars = this.won ? completionStars(this.hp, this.stats.maxHp) : 0;
+    const nextStage = this.stage && this.stage.id < STAGES.length ? this.stage.id + 1 : null;
+    const minutes = Math.floor(this.runSeconds / 60), seconds = Math.floor(this.runSeconds % 60);
+    this.domOverlay = mountScreen(this, `<section class="overlay-paper paper"><p class="overline">${this.stage ? `01–0${this.stage.id} · ${this.stage.name}` : L('오늘의 특별 영업', 'TONIGHT’S SPECIAL')}</p>${artIcon('pot', 'result-pot')}<div class="result-stars">${stars ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '☾'}</div><h1>${this.won ? L('오늘도 완판!', 'Sold out tonight!') : L('오늘은 여기까지', 'A good night’s work')}</h1><p class="subtitle">${this.won ? L('골목에 따뜻한 한 그릇을 전했어요.', 'A little warmth for everyone in the alley.') : L('모은 엽전으로 더 든든한 냄비를 준비해요.', 'Use your coins to prepare for the next night.')}${newBest ? ' ' + L('최고 기록 갱신!', 'New best!') : ''}</p><div class="receipt"><div>${L('버틴 웨이브', 'Waves served')}<b>${this.wavesCleared}${this.stage ? ' / ' + this.stage.waves : ' / ' + reached}</b></div><div>${L('대접한 손님', 'Guests served')}<b>${this.kills}</b></div><div>${L('영업 시간', 'Time open')}<b>${minutes}:${String(seconds).padStart(2, '0')}</b></div></div><div class="reward-row"><div>${coin(gems)}<small>${L('획득한 엽전', 'COINS EARNED')}</small></div><div>✦ ${this.earnedXp}<small>${L('영업 경험치', 'EXPERIENCE')}</small></div></div><div class="result-level">${L('냄비', 'POT')} Lv. ${this.previousLevel}${potLevel(save.xp) > this.previousLevel ? ' → ' + potLevel(save.xp) : ''}<div class="xp-track"><span style="width:${save.xp % 200 / 2}%"></span></div><small>${save.xp % 200} / 200 XP</small></div><div class="result-buttons"><button class="primary" data-action="continue">${this.won ? nextStage ? L('다음 골목으로', 'Next alley') : L('모든 골목 완판! 지도 보기', 'All alleys served! View map') : L('다시 영업하기', 'Try another night')} <span>→</span></button><div class="button-pair"><button class="paper-button" data-action="lab">${L('비밀 레시피', 'Recipes')}</button><button class="paper-button" data-action="home">${L('가게로 돌아가기', 'Back to shop')}</button></div></div></section>`, 'game-overlay results-overlay');
+    const root = this.domOverlay.root;
+    bind(root, 'continue', () => { if (this.won) this.scene.start('Stages'); else this.scene.restart({ daily: this.daily, stage: this.stage?.id }); });
+    bind(root, 'lab', () => this.scene.start('Lab'));
+    bind(root, 'home', () => this.scene.start('Menu'));
   }
 }

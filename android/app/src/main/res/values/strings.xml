@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Neon Bastion</string>
-    <string name="title_activity_main">Neon Bastion</string>
+    <string name="app_name">심야분식</string>
+    <string name="title_activity_main">심야분식</string>
     <string name="package_name">com.neonbastion.game</string>
     <string name="custom_url_scheme">com.neonbastion.game</string>
 </resources>

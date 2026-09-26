@@ -13,6 +13,9 @@ import { StageScene } from './scenes/StageScene';
 import { LabScene } from './scenes/LabScene';
 import { setupNative } from './native';
 import { sfx } from './audio';
+import { lang } from './i18n';
+
+document.documentElement.lang = lang;
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

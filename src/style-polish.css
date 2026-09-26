@@ -291,7 +291,7 @@ button:focus-visible { outline: 3px solid #ffd56d; outline-offset: 3px; }
 .results-overlay .paper-button { font-size:17px; }
 @keyframes pot-bob { 0%,100% { transform:translateY(0) rotate(-3deg); } 50% { transform:translateY(-5px) rotate(3deg); } }
 @media (max-height:720px) {
-  .title-block { top:4%; }
+  .title-block { top:9%; }
   .title-block h1 { font-size: clamp(56px,10vh,80px); }
   .title-sub { font-size:15px; }
   .stage-screen .page-heading,.lab-screen .page-heading { min-height:73px; padding:8px; margin-top:-46px; }
@@ -308,14 +308,20 @@ button:focus-visible { outline: 3px solid #ffd56d; outline-offset: 3px; }
   .bottom-nav button { font-size:11px; }
   .bottom-nav .nav-glyph { height:27px; }
   .bottom-nav .nav-glyph svg { width:26px; height:26px; }
-  .lab-hero { top:26%; padding:4px 8px; }
-  .lab-hero h2 { font-size:32px; }
+  .lab-hero { top:23%; padding:3px 7px; }
+  .lab-hero p { font-size:12px; }
+  .lab-hero h2 { font-size:28px; }
+  .lab-hero small { font-size:11px; }
+  .lab-hero .xp-track { height:9px; }
   .recipe-ledger { top:40%; bottom:67px; padding:13px 14px 10px; }
   .ledger-header h2 { font-size:28px; }
   .ledger-note { font-size:12px; }
   .upgrade-row { min-height:65px; }
   .upgrade-copy h3 { font-size:18px; }
   .upgrade-copy p { font-size:12px; }
+  html[lang=en] .upgrade-copy h3 { font-size:16px; }
+  html[lang=en] .upgrade-copy small { font-size:11px; }
+  html[lang=en] .upgrade-copy p { font-size:11px; }
   .upgrade-buy { min-width:61px; }
   .recipe-ledger > .primary { min-height:43px; font-size:19px; }
   .overlay-paper { padding:16px 19px; }

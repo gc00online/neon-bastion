@@ -15,18 +15,18 @@ export const CORE_R = 38;
 export const FONT = '"Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
 
 export const COLOR = {
-  bg: 0x191822,
-  grid: 0x392c29,
-  cyan: 0xefc586,
-  pink: 0xd37662,
-  red: 0xd45f42,
-  yellow: 0xf1c568,
-  green: 0x91b695,
-  purple: 0xb595c3,
+  bg: 0x070912,
+  grid: 0x111735,
+  cyan: 0x00f5ff,
+  pink: 0xff2e88,
+  red: 0xff4d6d,
+  yellow: 0xffd166,
+  green: 0x06d6a0,
+  purple: 0xb388ff,
   orange: 0xff9f1c,
-  blue: 0x86b6bd,
-  white: 0xf6e7ca,
-  gray: 0xc1ac96,
+  blue: 0x4cc9f0,
+  white: 0xe8ecf5,
+  gray: 0x8a93a8,
 };
 
 export const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');

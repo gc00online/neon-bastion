@@ -1,79 +1,74 @@
 import Phaser from 'phaser';
-import { setupCamera } from '../config';
-import { save, persist, applySettings } from '../save';
+import { W, OY, COLOR, setupCamera } from '../config';
+import { CORE_TEX_R, SHAPE_R } from './BootScene';
+import { ENEMIES, EnemyKind } from '../data/enemies';
+import { save } from '../save';
 import { music } from '../music';
-import { L, lang, setLang } from '../i18n';
-import { todayModifier, todayKey } from '../data/daily';
-import { asset, bind, coin, mountScreen, navGlyph } from '../ui/dom';
+import { openSettings } from '../ui/settings';
+import { L } from '../i18n';
+import { todayKey, todayModifier } from '../data/daily';
+import { sfx } from '../audio';
+import { txt, button } from '../ui/widgets';
+import { drawBackground } from '../ui/bg';
 
 export class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
-  private openDaily = false;
-  init(data?: { openDaily?: boolean }) { this.openDaily = !!data?.openDaily; }
+
+  private orbit: { img: Phaser.GameObjects.Image; a: number; r: number }[] = [];
+
   create() {
     setupCamera(this);
-    const bitmapMenu = lang === 'ko';
-    const menu = bitmapMenu ? `
-      <picture class="concept-menu-picture" aria-hidden="true">
-        <source media="(prefers-reduced-motion: reduce)" srcset="${asset('menu-reference.png')}">
-        <img class="screen-bg concept-menu-art" src="${asset('menu-loop.webp')}" alt="" draggable="false">
-      </picture>
-      <h1 class="visually-hidden">심야분식 · 마지막 떡볶이를 지켜라</h1>
-      <button class="menu-hotspot menu-hotspot-play" data-action="play" aria-label="영업 시작"><span class="visually-hidden">영업 시작</span></button>
-      <button class="menu-hotspot menu-hotspot-lab" data-action="lab" aria-label="비밀 레시피"><span class="visually-hidden">비밀 레시피</span></button>
-      <button class="menu-extra menu-extra-daily" data-action="daily">${navGlyph('Daily')} <span>오늘의 도전</span></button>
-      <button class="menu-extra menu-extra-settings" data-action="settings" aria-label="설정">⚙</button>
-    ` : `
-      <img class="screen-bg" src="${asset('title.webp')}" alt="">
-      <video class="screen-bg title-video" muted loop playsinline preload="none" poster="${asset('title.webp')}" aria-hidden="true"></video>
-      <div class="title-shade"></div>
-      <header class="menu-top"><button class="round-button" data-action="settings" aria-label="${L('설정', 'Settings')}">⚙</button><span class="wallet">${coin(save.gems)}</span></header>
-      <div class="title-block"><p class="overline">${L('달이 뜨면, 영업 시작', 'WHEN THE MOON RISES')}</p><h1>${L('심야분식', 'Midnight<br>Snack Stall')}</h1><p class="title-sub">${L('마지막 떡볶이를 지켜라', 'Defend the last bowl of tteokbokki')}</p><div class="title-rule"><span>✦</span></div></div>
-      <div class="menu-actions">
-      <button class="primary large" data-action="play">${L('영업 시작', 'Open the shop')} <span>↗</span></button>
-      <div class="button-pair"><button class="paper-button" data-action="lab">${navGlyph('Lab')} ${L('비밀 레시피', 'Secret recipes')}</button><button class="paper-button" data-action="daily">${navGlyph('Daily')} ${L('오늘의 도전', 'Daily special')}</button></div>
-      <p class="menu-foot">${L('작은 냄비 하나, 끝없는 맛있는 밤.', 'One little pot. Endless delicious nights.')}</p></div>`;
-    const { root } = mountScreen(this, menu, bitmapMenu ? 'menu-screen concept-menu' : 'menu-screen');
-    if (!bitmapMenu) {
-      const video = root.querySelector('video')!;
-      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let stopped = false;
-      const startVideo = () => {
-        if (reduced || stopped || document.hidden) return;
-        if (!video.getAttribute('src')) video.src = asset('background.mp4');
-        void video.play().catch(() => { /* Keep the poster when autoplay is blocked. */ });
-      };
-      video.addEventListener('playing', () => video.classList.add('playing'));
-      video.addEventListener('error', () => video.classList.remove('playing'));
-      const visibility = () => { if (document.hidden) video.pause(); else startVideo(); };
-      document.addEventListener('visibilitychange', visibility);
-      root.addEventListener('pointerdown', startVideo, { once: true });
-      startVideo();
-      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { stopped = true; document.removeEventListener('visibilitychange', visibility); });
-    }
-    bind(root, 'play', () => this.scene.start('Stages'));
-    bind(root, 'lab', () => this.scene.start('Lab'));
-    const openChallenge = () => {
-      const mod = todayModifier(todayKey());
-      const dialog = document.createElement('dialog');
-      dialog.className = 'paper-dialog';
-      dialog.innerHTML = `<p class="overline">${L('오늘의 특별 영업', 'DAILY SPECIAL')}</p><h2>${mod.name}</h2><p>${mod.desc}</p><p>${L('첫 영업은 엽전 보상 2배', 'Double coins on your first run today')}</p><button class="primary" data-action="begin">${L('도전하기', 'Start challenge')}</button><button class="text-button" data-action="close">${L('돌아가기', 'Back')}</button>`;
-      root.append(dialog); dialog.showModal();
-      bind(dialog, 'begin', () => this.scene.start('Game', { daily: true }));
-      bind(dialog, 'close', () => dialog.remove());
-    };
-    bind(root, 'daily', openChallenge);
-    if (this.openDaily) openChallenge();
-    bind(root, 'settings', () => this.settings(root));
+    drawBackground(this);
+
+    txt(this, W / 2, 230 + OY, 'NEON', 104, { color: COLOR.cyan, glow: true });
+    txt(this, W / 2, 330 + OY, 'BASTION', 88, { color: COLOR.pink, glow: true });
+    txt(this, W / 2, 420 + OY, L('로그라이크 디펜스', 'ROGUELIKE DEFENSE'), 26, { color: COLOR.gray, bold: false });
+
+    // 가운데 장식: 회전하는 기지와 주위를 도는 적들
+    const cy = 640 + OY;
+    this.add.image(W / 2, cy, 'glow').setTint(COLOR.cyan).setAlpha(0.35).setScale(1.4).setBlendMode(Phaser.BlendModes.ADD);
+    const core = this.add.image(W / 2, cy, 'core').setTint(COLOR.cyan).setScale(52 / CORE_TEX_R);
+    this.tweens.add({ targets: core, rotation: Math.PI * 2, duration: 12000, repeat: -1 });
+    const kinds: EnemyKind[] = ['grunt', 'runner', 'brute', 'shooter', 'splitter', 'swarm'];
+    this.orbit = kinds.map((k, i) => {
+      const d = ENEMIES[k];
+      return { img: this.add.image(0, 0, d.tex).setTint(d.color).setScale(d.r / SHAPE_R), a: (i / kinds.length) * Math.PI * 2, r: 150 + (i % 2) * 40 };
+    });
+
+    if (save.best > 0) txt(this, W / 2, 815 + OY, L(`최고 기록  웨이브 ${save.best}`, `Best  Wave ${save.best}`), 26, { color: COLOR.yellow });
+    const gem = this.add.image(W / 2 - 70, 858 + OY, 'e_diamond').setTint(COLOR.cyan).setScale(0.3);
+    const gt = txt(this, W / 2 - 45, 858 + OY, L(`보석 ${save.gems}`, `Gems ${save.gems}`), 24, { color: COLOR.cyan, align: 'left' });
+    gem.x = W / 2 - (gt.width + 36) / 2 + 10;
+    gt.x = gem.x + 25;
+
+    const play = button(this, W / 2, 950 + OY, 460, 104, L('게임 시작', 'PLAY'), COLOR.cyan, () => this.go('Game'), 40);
+    this.tweens.add({ targets: play, scale: 1.04, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+
+    // 일일 도전
+    const day = todayKey();
+    const mod = todayModifier(day);
+    const rec = save.daily.day === day ? save.daily : null;
+    button(this, W / 2, 1063 + OY, 460, 90, L(`일일 도전 · ${mod.name}`, `Daily · ${mod.name}`), COLOR.yellow, () => this.go('Game', { daily: true }), 28);
+    txt(this, W / 2, 1122 + OY, rec?.best ? L(`오늘 최고 웨이브 ${rec.best}`, `Today's best: wave ${rec.best}`) : `${mod.desc.replace('\n', ' · ')}  ·  ${L('첫 판 보석 2배', 'first run 2× gems')}`, 18, { color: COLOR.gray, bold: false });
+
+    button(this, W / 2 - 118, 1200 + OY, 224, 76, L('연구소', 'Lab'), COLOR.purple, () => this.go('Lab'), 28);
+    button(this, W / 2 + 118, 1200 + OY, 224, 76, L('설정', 'Settings'), COLOR.white, () => openSettings(this, true), 28);
     music.play(0);
+
+    this.cameras.main.fadeIn(300, 7, 9, 18);
   }
-  private settings(root: HTMLElement) {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'paper-dialog';
-    dialog.innerHTML = `<p class="overline">${L('가게 설정', 'SHOP SETTINGS')}</p><h2>${L('나만의 밤', 'Your kind of night')}</h2>${(['sound', 'music', 'vibrate'] as const).map((key, i) => `<label class="setting-row">${[L('효과음', 'Sound effects'), L('배경음악', 'Music'), L('진동', 'Haptics')][i]}<input type="checkbox" data-setting="${key}" ${save[key] ? 'checked' : ''}></label>`).join('')}<button class="paper-button" data-action="language">${lang === 'ko' ? '언어 · 한국어 → English' : 'Language · English → 한국어'}</button><button class="primary" data-action="close">${L('닫기', 'Close')}</button>`;
-    root.append(dialog); dialog.showModal();
-    dialog.querySelectorAll<HTMLInputElement>('[data-setting]').forEach(input => input.addEventListener('change', () => { save[input.dataset.setting as 'sound' | 'music' | 'vibrate'] = input.checked; persist(); applySettings(); }));
-    bind(dialog, 'language', () => setLang(lang === 'ko' ? 'en' : 'ko'));
-    bind(dialog, 'close', () => dialog.remove());
+
+  update(_t: number, dt: number) {
+    for (const o of this.orbit) {
+      o.a += (dt / 1000) * 0.35;
+      o.img.setPosition(W / 2 + Math.cos(o.a) * o.r, 640 + OY + Math.sin(o.a) * o.r * 0.72);
+      o.img.rotation += dt / 1000;
+    }
+  }
+
+  private go(key: string, data?: object) {
+    sfx.unlock();
+    this.cameras.main.fadeOut(200, 7, 9, 18);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(key, data));
   }
 }

@@ -13,7 +13,6 @@ export function setupNative(game: Phaser.Game) {
   App.addListener('backButton', () => {
     const active = game.scene.getScenes(true).map(s => s.scene.key);
     if (active.includes('Game')) (game.scene.getScene('Game') as any).pause();
-    else if (active.includes('Stages')) game.scene.getScene('Stages').scene.start('Menu');
     else if (active.includes('Lab')) game.scene.getScene('Lab').scene.start('Menu');
     else App.exitApp();
   });

@@ -9,9 +9,7 @@
     "preview": "vite preview --host",
     "sync": "npm run build && npx cap sync",
     "ios": "npm run build && npx cap sync ios && npx cap open ios",
-    "android": "npm run build && npx cap sync android && npx cap open android",
-    "test": "node --test tests/*.test.mjs",
-    "img": "node --env-file-if-exists=.env scripts/gen-image.mjs"
+    "android": "npm run build && npx cap sync android && npx cap open android"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -19,19 +17,13 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/status-bar": "^8.0.3",
-    "@fontsource/gaegu": "^5.3.0",
-    "@fontsource/nanum-brush-script": "^5.3.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/ios": "^8.5.2",
-    "sharp": "^0.35.5",
     "typescript": "^5.9.3",
     "vite": "^8.3.1"
-  },
-  "engines": {
-    "node": ">=22.18.0"
   }
 }

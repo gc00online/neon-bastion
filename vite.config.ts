@@ -18,7 +18,7 @@ function saveEndpoint(): Plugin {
         req.on('end', () => {
           const body = Buffer.concat(chunks).toString();
           const b64 = body.replace(/^data:[^,]+,/, '');
-          const out = path.resolve(import.meta.dirname, name);
+          const out = path.resolve(__dirname, name);
           fs.mkdirSync(path.dirname(out), { recursive: true });
           fs.writeFileSync(out, Buffer.from(b64, 'base64'));
           res.end('ok');

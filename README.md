@@ -43,6 +43,15 @@ npm run build
 | `public/art/` | 적용된 컨셉 이미지·스프라이트·영상 |
 | `tests/progression.test.mjs` | 저장 호환·보상·해금·레벨 검사 |
 
+## 이미지 생성 (OpenAI API)
+1. `.env.example` 을 복사해 `.env` 로 이름을 바꾸고 `OPENAI_API_KEY=` 뒤에 키를 넣는다 (`.env` 는 GitHub에 안 올라감)
+2. 사용:
+```sh
+npm run img -- "cute slime monster, front view, game sprite" --n 4 --quality low
+npm run img -- "same slime, angry" --ref art/generated/슬라임.png --trim --resize 256 --out public/art/slime-angry.png
+```
+옵션 전체는 `scripts/gen-image.mjs` 맨 위 주석 참고. `art/style.txt` 에 공통 그림체 문구를 적어두면 모든 이미지에 자동으로 붙는다.
+
 ## 네이티브 앱
 
 ```sh

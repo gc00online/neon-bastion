@@ -4,7 +4,7 @@ android {
     namespace = "com.neonbastion.game"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.neonbastion.game"
+        applicationId "com.gc00.neonbastion"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

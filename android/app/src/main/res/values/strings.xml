@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Neon Bastion</string>
     <string name="title_activity_main">Neon Bastion</string>
-    <string name="package_name">com.neonbastion.game</string>
-    <string name="custom_url_scheme">com.neonbastion.game</string>
+    <string name="package_name">com.gc00.neonbastion</string>
+    <string name="custom_url_scheme">com.gc00.neonbastion</string>
 </resources>

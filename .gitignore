@@ -10,3 +10,7 @@ android/app/src/main/assets/public
 key.properties
 *.p12
 *.mobileprovision
+
+# 비밀 값 (API 키 등)
+.env
+.env.*

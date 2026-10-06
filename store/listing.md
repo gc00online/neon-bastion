@@ -1,99 +1,138 @@
-# 스토어 등록 정보 (복사해서 붙여넣기용)
+# App Store 등록 정보 — Neon Bastion
 
-## 기본 정보
+App Store Connect 에 그대로 붙여 넣을 문구. 글자 수 제한은 괄호 안.
+
+## 공통 설정
 | 항목 | 값 |
 |---|---|
-| 앱 이름 | Neon Bastion |
-| 번들 ID / 패키지명 | `capacitor.config.ts`의 appId (출시 전에 본인 것으로 변경) |
-| 카테고리 | 게임 › 전략 (보조: 캐주얼) |
-| 가격 | 무료 (광고 없음, 인앱결제 없음) |
-| 연령 등급 | 전체 이용가 / 4+ (폭력: 추상적인 도형이 터지는 정도) |
+| 가격 | 무료 |
+| 기본 언어 | 한국어 (영어 현지화 추가) |
+| 카테고리 | 기본: 게임 › 전략 / 보조: 게임 › 액션 |
 | 개인정보처리방침 URL | https://gc00online.github.io/neon-bastion/privacy.html |
+| 지원 URL | https://gc00online.github.io/neon-bastion/support.html |
+| 마케팅 URL (선택) | https://gc00online.github.io/neon-bastion/ |
+| 저작권 | 2026 low-hi |
+| 앱 개인정보 보호 | "데이터를 수집하지 않음" |
+| 연령 등급 설문 | 모든 항목 "없음" → 4+ (적은 추상 도형이며 피·사람·사실적 폭력 없음). 인앱 구매 없음, 웹 접근 없음, 사용자 생성 콘텐츠 없음 |
+| 수출 규정(암호화) | 사용 안 함 (Info.plist 에 이미 설정됨) |
+| 스크린샷 | store/screenshots/iphone-6.9/ 6장 (1320×2868) |
 
 ---
 
 ## 한국어
 
-**부제 (App Store, 30자 이내)**
-로그라이크 디펜스, 광고 없음
+**앱 이름** (30)
+```
+Neon Bastion: 네온 디펜스
+```
 
-**짧은 설명 (Google Play, 80자 이내)**
-카드를 골라 빌드를 완성하고 끝없이 몰려오는 적을 막아내는 네온 로그라이크 디펜스. 광고 없음!
+**부제** (30)
+```
+광고 없는 로그라이크 기지 방어
+```
 
-**프로모션 문구 (App Store, 170자 이내)**
-매 웨이브마다 카드 3장 중 하나를 골라 나만의 기지를 만드세요. 연쇄 번개, 궤도 칼날, 추적 미사일… 조합은 무한대. 광고 없이 게임에만 집중!
+**프로모션 텍스트** (170, 심사 없이 언제든 수정 가능)
+```
+광고 없음. 인터넷 없이도 OK. 몰려오는 적을 막고, 매 웨이브 강화 모듈을 골라 나만의 빌드를 완성하세요. 오늘의 일일 작전에도 도전해 보세요!
+```
 
-**설명**
-사방에서 몰려오는 적으로부터 네온 요새를 지켜내세요!
+**설명** (4000)
+```
+사방에서 몰려오는 적을 막아내는 홀로그램 기지 방어 게임.
+웨이브를 막을 때마다 강화 모듈 3장 중 하나를 골라 매번 다른 빌드를 만드세요.
 
-Neon Bastion은 한 판 5~15분이면 끝나는 로그라이크 디펜스 게임입니다. 기지는 자동으로 공격하고, 여러분은 웨이브가 끝날 때마다 업그레이드 카드 3장 중 하나를 골라 전략을 완성합니다.
+■ 광고 없음, 오프라인 플레이
+광고도, 회원가입도, 인터넷 연결도 필요 없습니다. 언제 어디서든 바로 출격하세요.
 
-■ 매 판 달라지는 빌드
-연쇄 번개, 궤도 칼날, 추적 미사일, 충격파, 냉기장, 폭발탄… 24종의 카드를 조합해 나만의 필승 전략을 만드세요. 같은 능력을 다시 고르면 레벨업!
+■ 매 판 달라지는 로그라이크 빌드
+연쇄 번개, 추적 미사일, 궤도 칼날, 냉기장, 충격파, 처형, 부식탄, 폭발탄 — 8가지 능력과 다양한 강화 모듈을 조합해 나만의 최강 빌드를 찾아보세요. 같은 능력을 고르면 레벨이 올라 더 강해집니다.
 
-■ 5웨이브마다 보스
-헥스 타이탄, 하이브 퀸, 아틸러리. 각기 다른 패턴의 보스를 쓰러뜨리고 영웅 등급 보상을 획득하세요.
+■ 끝없는 웨이브와 보스전
+돌진형, 분열형, 사수, 치유형, 순간이동형 등 다양한 적이 몰려옵니다.
+5웨이브마다 헥스 타이탄, 하이브 퀸, 아틸러리 보스가 등장합니다.
 
-■ 영구 성장
-판이 끝나면 보석을 받아 연구소에서 기지를 영구 강화합니다. 지난번보다 한 웨이브라도 더!
+■ 연구소에서 영구 강화
+전투에서 얻은 보석으로 공격력, 공격 속도, 치명타, 체력 등 10가지 연구를 올리세요. 다음 출격이 확실히 강해집니다.
 
-■ 일일 도전
-매일 바뀌는 특수 규칙으로 모두가 같은 조건에서 도전합니다.
+■ 일일 작전
+매일 바뀌는 특수 규칙(오버클럭, 물량 공세, 행운의 날 등)으로 하루 한 번 새로운 도전을 즐기세요. 첫 판은 보석 2배!
 
-■ 광고 없음
-광고도, 강제 결제도, 로그인도 없습니다. 인터넷 없이도 플레이할 수 있어요.
+■ 전술 HUD와 화려한 이펙트
+선체 게이지, 위협도, 미니 레이더, 콤보, 락온 표시까지 — 전장의 모든 정보를 한눈에.
+화면 흔들림·플래시 끄기 옵션으로 편안하게 즐길 수도 있습니다.
 
-**키워드 (App Store, 100자 이내, 쉼표 구분)**
-디펜스,타워디펜스,로그라이크,로그라이트,전략,캐주얼,오프라인,광고없음,네온,카드,빌드,웨이브,보스,싱글
+■ 7곡의 우주 배경음악
+전투 중 일시정지 화면에서 원하는 곡으로 바꾸고 음량도 조절할 수 있습니다.
+
+짧게 한 판, 길게는 최고 기록 경신까지. 당신의 기지는 몇 웨이브까지 버틸 수 있을까요?
+```
+
+**키워드** (100, 쉼표로 구분, 공백 없이)
+```
+디펜스,타워디펜스,로그라이크,전략,네온,오프라인,광고없음,웨이브,보스,업그레이드,빌드,캐주얼,방치,슈팅
+```
+
+**이번 버전의 새로운 기능** (첫 출시)
+```
+Neon Bastion 첫 출시! 광고 없는 로그라이크 기지 방어를 즐겨 보세요.
+```
 
 ---
 
 ## English
 
-**Subtitle (App Store, ≤30 chars)**
-Roguelike defense. No ads.
+**Name** (30)
+```
+Neon Bastion: Neon Defense
+```
 
-**Short description (Google Play, ≤80 chars)**
-Draft upgrades, build your combo and hold the neon fortress. No ads, ever.
+**Subtitle** (30)
+```
+Ad-free roguelite base defense
+```
 
-**Promotional text (App Store, ≤170 chars)**
-Pick 1 of 3 upgrade cards after every wave. Chain lightning, orbit blades, homing missiles—endless combos. No ads, no pay-to-win, fully offline.
+**Promotional Text** (170)
+```
+No ads. No internet needed. Hold the line against endless waves, pick an upgrade module after every wave, and craft your own build. Try today's Daily Op!
+```
 
-**Description**
-Defend your neon fortress from enemies pouring in from every side!
+**Description** (4000)
+```
+Defend your holographic bastion against enemies closing in from every direction.
+After each wave, choose one of three upgrade modules and build a different loadout every run.
 
-Neon Bastion is a bite-sized roguelike defense game — each run takes 5–15 minutes. Your base fires automatically; after every wave you choose one of three upgrade cards and shape your strategy.
+■ No ads, fully offline
+No ads, no sign-up, no internet connection required. Launch a sortie anytime, anywhere.
 
-■ A new build every run
-Chain lightning, orbit blades, homing missiles, shockwaves, frost fields, explosive rounds… Combine 24 cards into your own winning build. Pick an ability again to level it up!
+■ A new roguelite build every run
+Chain lightning, homing missiles, orbiting blades, frost field, shockwave, execute, corrosion, explosive rounds — combine 8 abilities and many upgrade modules to find your strongest build. Pick the same ability again to level it up.
 
-■ A boss every 5 waves
-Hex Titan, Hive Queen, Artillery — each with its own pattern. Beat them for guaranteed epic rewards.
+■ Endless waves and boss fights
+Rushers, splitters, shooters, healers, blinkers and more swarm your base.
+Every 5 waves a boss arrives: Hex Titan, Hive Queen, or Artillery.
 
-■ Permanent progression
-Earn gems every run and upgrade your base in the Lab. Push one wave further than last time!
+■ Permanent upgrades in the R&D Lab
+Spend gems earned in battle on 10 research tracks — damage, attack speed, crit, hull and more — and make every next sortie stronger.
 
-■ Daily challenge
-A new special rule every day, the same conditions for everyone.
+■ Daily Ops
+A new special rule every day (Overclock, Horde, Lucky Day and more). Your first run of the day earns double gems!
 
-■ No ads
-No ads, no forced purchases, no login. Play offline anywhere.
+■ Tactical HUD and flashy effects
+Hull gauge, threat level, mini radar, combo meter, lock-on markers — all the battlefield info at a glance.
+Prefer a calmer screen? Turn off screen shake and flashes in Settings.
 
-**Keywords (App Store, ≤100 chars)**
-defense,tower defense,roguelike,roguelite,strategy,casual,offline,no ads,neon,cards,waves,boss
+■ 7 space soundtracks
+Switch tracks and adjust volume right from the pause menu.
 
----
+Quick runs or record-breaking marathons — how many waves can your bastion hold?
+```
 
-## 스크린샷 파일
-- App Store (iPhone 6.9"): `store/ios/1-combat.png` ~ `5-menu.png` (1320×2868)
-- Google Play (휴대전화): `store/google/1-combat.png` ~ `5-menu.png` (1080×1920)
-- Google Play 그래픽 이미지: `store/google-feature-graphic-1024x500.png`
-- Google Play 앱 아이콘: `store/google-icon-512.png`
+**Keywords** (100)
+```
+defense,tower defense,roguelite,roguelike,strategy,neon,offline,no ads,waves,boss,upgrade,shooter
+```
 
-## 심사 설문 답변 가이드
-**App Store — 앱 개인정보 보호**: “데이터를 수집하지 않음” 선택
-**App Store — 수출 규정(암호화)**: 사용 안 함 (Info.plist에 이미 설정됨)
-**Google Play — 데이터 보안**: 데이터 수집 없음, 공유 없음
-**Google Play — 광고 포함 여부**: 아니요
-**Google Play — 콘텐츠 등급(IARC)**: 폭력 → 추상적/비현실적 대상에 대한 폭력(도형), 나머지 모두 아니요
-**Google Play — 타겟 연령**: 13세 이상 권장 (13세 미만 포함 시 ‘가족 정책’ 추가 요건이 붙음)
+**What's New** (first release)
+```
+Neon Bastion launches! Enjoy ad-free roguelite base defense.
+```

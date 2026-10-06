@@ -1167,7 +1167,8 @@ export class GameScene extends Phaser.Scene {
       const card = CARDS.find(c => c.ability === a)!;
       const col = RARITY[card.rarity].color;
       const x = MX + slotW / 2 + i * (slotW + gap);
-      const c = this.add.container(x, -px(7) - sz / 2);
+      // 모듈이 많으면 슬롯 전체를 줄여서 배속 버튼 앞까지만 쓰게 한다
+      const c = this.add.container(x, -px(7) - slotW / 2).setScale(slotW / sz);
       const g = this.add.graphics();
       const icon = this.add.image(0, -px(4), card.icon).setTint(col).setScale(iconScale(card.icon, px(24)));
       const cdT = num(this, 0, px(16), '', px(9), COLOR.text);

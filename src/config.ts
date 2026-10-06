@@ -3,9 +3,20 @@ import type Phaser from 'phaser';
 // 논리 해상도(좌표계)는 720x1280, 실제 렌더링은 RES배로 해서 고해상도 폰에서도 선명하게 보이게 한다.
 export const W = 720;
 // 세로 길이는 기기 화면비에 맞춰 늘린다(요즘 폰은 16:9보다 길다). 1280 기준으로 배치한 UI는 OY 만큼 내려서 가운데 정렬.
-const aspect = window.innerHeight / Math.max(1, window.innerWidth);
-export const H = Math.round(Math.min(1700, Math.max(1280, W * aspect)));
-export const OY = Math.round((H - 1280) / 2);
+// 앱(WKWebView)은 첫 화면이 그려진 뒤에야 노치·홈 바 안전 영역을 알려주므로, 크기가 바뀌면 다시 재서 갱신한다(main.ts).
+export let H = 1280;
+export let OY = 0;
+export function measureLayout(): boolean {
+  const el = document.getElementById('app');
+  const w = el?.clientWidth || window.innerWidth;
+  const h = el?.clientHeight || window.innerHeight;
+  const nh = Math.round(Math.min(1700, Math.max(1280, W * h / Math.max(1, w))));
+  const changed = nh !== H;
+  H = nh;
+  OY = Math.round((H - 1280) / 2);
+  CORE_Y = Math.round(H * 0.54);
+  return changed;
+}
 export const RES = 2;
 
 // 디자인 시안은 390pt 폭 기준. 시안 수치(pt) → 게임 좌표(px) 변환.
@@ -13,7 +24,8 @@ export const S = W / 390;
 export const px = (n: number) => Math.round(n * S);
 
 export const CORE_X = W / 2;
-export const CORE_Y = Math.round(H * 0.54);
+export let CORE_Y = Math.round(H * 0.54);
+measureLayout();
 export const CORE_R = 38;
 
 // 숫자·영문 라벨은 Chakra Petch, 한글 본문은 IBM Plex Sans KR (public/fonts 에 동봉, 오프라인 동작)

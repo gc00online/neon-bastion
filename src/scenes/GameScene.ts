@@ -152,6 +152,8 @@ export class GameScene extends Phaser.Scene {
   private slotRow!: Phaser.GameObjects.Container;
   private speedSeg!: Phaser.GameObjects.Container & { setActive(i: number): void };
   private overlay?: Phaser.GameObjects.Container;
+  /** 마지막으로 제시된 카드 (테스트 하네스용) */
+  lastCards: Card[] = [];
   private hudObjs: Phaser.GameObjects.GameObject[] = [];
   private shownHp = 0;
 
@@ -1188,6 +1190,7 @@ export class GameScene extends Phaser.Scene {
   private showCards(minRarity: Rarity | undefined, title: string, subtitle: string) {
     this.state = 'cards';
     const cards = drawCards(this.cardCtx(), Math.max(1, this.wave), 3, minRarity, this.rng, this.mod?.rarityBoost ?? 1);
+    this.lastCards = cards;
     if (this.bot) {
       // 밸런스 측정용: smart 는 높은 등급 우선, 기본은 무작위
       const order: Rarity[] = ['common', 'rare', 'epic', 'legendary'];

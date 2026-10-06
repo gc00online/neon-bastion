@@ -14,7 +14,8 @@
     <style>
       html, body { margin: 0; padding: 0; height: 100%; background: #04070B; overflow: hidden; }
       body { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
-      #app { position: fixed; inset: 0; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); box-sizing: border-box; }
+      /* 노치·홈 바 안쪽 영역만 캔버스로 쓴다 (padding 대신 inset 으로 잡아야 Phaser 가 실제 크기를 읽는다) */
+      #app { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top); bottom: env(safe-area-inset-bottom); }
       canvas { display: block; }
     </style>
   </head>

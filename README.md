@@ -13,6 +13,8 @@
 - 판이 끝나면 보석 → **연구소**에서 영구 강화.
 - **일일 도전**: 날짜별 고정 시드 + 특수 규칙 7종 중 하나. 그날 첫 판은 보석 2배.
 - 첫 플레이 도움말, 설정(효과음/배경음악/진동/언어), 2배속, 일시정지.
+- UI 는 '택티컬 홀로그램' 디자인 시스템(v3): 색 토큰·글꼴·부품은 `src/config.ts`, `src/ui/widgets.ts`. 글꼴(Chakra Petch, IBM Plex Sans KR)은 `public/fonts/` 에 동봉되어 오프라인에서도 동작.
+- 전투 HUD: 선체 게이지·위협도, 웨이브 타임라인, 킬 티커·피드, 콤보, 미니 레이더, DPS, 락온, 화면 밖 적 표식, 능력 쿨다운 슬롯. 이펙트는 `src/game/fx.ts` 에서 도형·파티클로 그린다.
 - 그래픽·효과음·배경음악 모두 코드로 생성 → 에셋 파일·저작권 걱정 없음.
 - 저장: 웹은 localStorage, 앱에서는 Capacitor Preferences(OS가 지우지 않는 저장소).
 
@@ -33,6 +35,8 @@ npm run dev
 | `src/game/stats.ts` | 기지 능력치와 능력별 수치 공식 |
 | `src/scenes/GameScene.ts` | 전투 로직 전부 |
 | `src/audio.ts`, `src/music.ts` | 효과음, 배경음악 합성 |
+| `src/game/fx.ts` | 전투 이펙트(스파크·폭발·번개·충격파·비네팅) |
+| `src/ui/widgets.ts`, `src/ui/bg.ts` | 디자인 시스템 부품(패널·버튼·게이지·칩·토글), 배경 |
 | `src/i18n.ts` | 언어 선택 (`L('한국어', 'English')`) |
 
 ## 개발용 도구 (npm run dev 에서만, 브라우저 콘솔)

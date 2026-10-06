@@ -7,7 +7,7 @@ import { LAB, buildStats } from '../data/lab';
 import { ABILITIES, Ability, Stats } from '../game/stats';
 import { FX } from '../game/fx';
 import { sfx, vibrate, haptics } from '../audio';
-import { music } from '../music';
+import { music, TRACKS } from '../music';
 import { L } from '../i18n';
 import { Modifier, MODIFIERS, todayKey, todayModifier, daySeed, seededRng } from '../data/daily';
 import { save, persist } from '../save';
@@ -1463,6 +1463,19 @@ export class GameScene extends Phaser.Scene {
     o.add(txt(this, MX * 2, y + px(10), L('배속', 'Speed'), px(13), { align: 'left', weight: 500 }));
     const seg = segmented(this, W - MX * 2 - px(44), y + px(10), ['x1', 'x2'], this.speedMode - 1, px(44), px(28), i => { this.speedMode = i + 1; this.speedSeg.setActive(i); });
     o.add(seg);
+
+    // 전투 배경음악 고르기
+    y += px(40);
+    o.add(txt(this, MX * 2, y + px(10), L('배경음악 곡', 'Track'), px(13), { align: 'left', weight: 500 }));
+    const bw = px(36), right = W - MX * 2, boxW = px(200), mid = right - boxW / 2;
+    const trackT = txt(this, mid, y + px(10), '', px(12), { font: 'num', weight: 600, color: COLOR.cyan });
+    const trackN = label(this, MX * 2 + px(78), y + px(10), '', px(9), COLOR.dim, 'left');
+    const showTrack = () => { trackT.setText(TRACKS[music.track].name); trackN.setText(`${music.track + 1} / ${TRACKS.length}`); };
+    const pick = (d: number) => { music.setTrack(music.track + d); save.musicTrack = music.track; persist(); showTrack(); };
+    o.add(button(this, right - boxW + bw / 2, y + px(10), bw, px(32), '◀', () => pick(-1), { kind: 'secondary', size: px(11), cut: {} }));
+    o.add(button(this, right - bw / 2, y + px(10), bw, px(32), '▶', () => pick(1), { kind: 'secondary', size: px(11), cut: {} }));
+    o.add([trackT, trackN]);
+    showTrack();
 
     // 버튼
     const by = H - px(26) - px(30);

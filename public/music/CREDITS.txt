@@ -1,8 +1,11 @@
-배경음악 (모두 CC0 1.0 퍼블릭 도메인 — 출처 표기 의무 없음, 감사의 뜻으로 기록)
+배경음악 (모두 OpenGameArt 의 CC0 1.0 퍼블릭 도메인 — 출처 표기 의무 없음, 감사의 뜻으로 기록)
 
-menu.m4a   — "Space Music: Out There" by yd
-             https://opengameart.org/content/space-music-out-there
-battle.m4a — "Cosmic Navigation" (loop version) by Synth-thetic
-             https://opengameart.org/content/cosmic-navigation
+out-there.m4a         "Space Music: Out There" by yd            https://opengameart.org/content/space-music-out-there
+cosmic-navigation.m4a "Cosmic Navigation" (loop) by Synth-thetic https://opengameart.org/content/cosmic-navigation
+space-echo.m4a        "Space Echo" by Centurion_of_war         https://opengameart.org/content/space-echo
+outer-space.m4a       "Outer Space Loop" by wipics             https://opengameart.org/content/outer-space-loop
+k-opal.m4a            "k-opal-7451" by James Gargette          https://opengameart.org/content/k-opal-7451
+space-flight.m4a      "Space Flight" by wipics                 https://opengameart.org/node/114436
+space-arp.m4a         "Space Arp" by Centurion_of_war          https://opengameart.org/content/space-arp
 
-원본(ogg/flac)을 macOS afconvert 로 AAC 128kbps 로 변환해 사용.
+원본(ogg/mp3/flac)을 macOS afconvert 로 AAC 128kbps 로 변환해 사용.

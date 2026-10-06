@@ -1,16 +1,28 @@
 import { sfx } from './audio';
 
 // 배경음악: CC0(퍼블릭 도메인) 우주 앰비언트 음원. 출처는 public/music/CREDITS.txt
-// level 0: 메뉴·연구소 / 1: 전투 / 2: 보스(전투 곡 그대로)
+// level 0: 메뉴·연구소(고정 곡) / 1: 전투 / 2: 보스(전투 곡 그대로). 전투 곡은 일시정지 화면에서 고른다
 export type MusicLevel = 0 | 1 | 2;
 
-const TRACKS = ['music/menu.m4a', 'music/battle.m4a'];
+export const TRACKS = [
+  { name: 'Cosmic Navigation', file: 'cosmic-navigation' },
+  { name: 'Out There', file: 'out-there' },
+  { name: 'Space Echo', file: 'space-echo' },
+  { name: 'Outer Space', file: 'outer-space' },
+  { name: 'K Opal 7451', file: 'k-opal' },
+  { name: 'Space Flight', file: 'space-flight' },
+  { name: 'Space Arp', file: 'space-arp' },
+];
+const MENU_FILE = 'out-there';
+const url = (file: string) => `music/${file}.m4a`;
 const FADE = 1.2;
 
 class Music {
   enabled = true;
   /** 0~1, 설정 슬라이더 값 */
   volume = 0.5;
+  /** 전투 곡 번호 (TRACKS) */
+  track = 0;
   private level: MusicLevel = 0;
   private wanted = false;
   private els: HTMLAudioElement[] = [];
@@ -40,6 +52,20 @@ class Music {
     if (ctx && this.cur >= 0) this.ramp(this.gains[this.cur], this.gain(), 0.05);
   }
 
+  setTrack(i: number) {
+    i = ((i % TRACKS.length) + TRACKS.length) % TRACKS.length;
+    if (i === this.track && this.els.length) return;
+    this.track = i;
+    const el = this.els[1];
+    if (!el) return;
+    // 전투 중이면 짧게 줄였다가 곡을 바꾸고 다시 올린다
+    const swap = () => {
+      el.src = url(TRACKS[this.track].file);
+      if (this.cur === 1) { el.play().catch(() => { /* 무시 */ }); this.ramp(this.gains[1], this.gain(), 0.4); }
+    };
+    if (this.cur === 1) { this.ramp(this.gains[1], 0, 0.25); setTimeout(swap, 260); } else swap();
+  }
+
   // 귀로 듣는 크기는 로그에 가까워서 제곱으로 깎아 준다
   private gain() { return this.volume * this.volume * 0.9; }
 
@@ -55,7 +81,7 @@ class Music {
   private init() {
     const ctx = sfx.ctx;
     if (!ctx || this.els.length) return;
-    for (const src of TRACKS) {
+    for (const src of [url(MENU_FILE), url(TRACKS[this.track]?.file ?? TRACKS[0].file)]) {
       const el = new Audio(src);
       el.loop = true;
       el.preload = 'auto';

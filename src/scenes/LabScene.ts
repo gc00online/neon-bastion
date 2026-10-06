@@ -49,6 +49,7 @@ export class LabScene extends Phaser.Scene {
     const ty = px(88);
     const seg = segmented(this, W / 2, ty + px(22), TABS.map(t => t.name), this.tab, (W - MX * 2) / 3, px(44), i => { this.tab = i; this.build(); });
     void seg;
+    this.tabBadges = [];
     TABS.forEach((_, i) => {
       const cx = MX + (W - MX * 2) / 3 * (i + 1) - px(14);
       this.tabBadges.push(num(this, cx, ty + px(22), '', px(10), COLOR.green));

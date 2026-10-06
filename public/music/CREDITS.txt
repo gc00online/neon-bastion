@@ -1,0 +1,8 @@
+배경음악 (모두 CC0 1.0 퍼블릭 도메인 — 출처 표기 의무 없음, 감사의 뜻으로 기록)
+
+menu.m4a   — "Space Music: Out There" by yd
+             https://opengameart.org/content/space-music-out-there
+battle.m4a — "Cosmic Navigation" (loop version) by Synth-thetic
+             https://opengameart.org/content/cosmic-navigation
+
+원본(ogg/flac)을 macOS afconvert 로 AAC 128kbps 로 변환해 사용.

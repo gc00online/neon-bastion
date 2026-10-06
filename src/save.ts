@@ -16,6 +16,8 @@ export interface SaveData {
   lab: Record<string, number>;
   sound: boolean;
   music: boolean;
+  /** 배경음악 음량 0~1 */
+  musicVol: number;
   vibrate: boolean;
   tips: Record<string, boolean>;
   daily: DailyRecord;
@@ -29,7 +31,7 @@ const KEY = 'neon-bastion-save-v1';
 
 const fresh = (): SaveData => ({
   gems: 0, best: 0, runs: 0, lab: {},
-  sound: true, music: true, vibrate: true,
+  sound: true, music: true, musicVol: 0.5, vibrate: true,
   tips: {},
   daily: { day: '', best: 0, runs: 0 },
   reducedFx: false,
@@ -69,6 +71,7 @@ export function persist() {
 export function applySettings() {
   sfx.enabled = save.sound;
   haptics.enabled = save.vibrate;
+  music.setVolume(save.musicVol);
   music.setEnabled(save.music);
 }
 

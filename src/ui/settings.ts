@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { W, H, COLOR, px } from '../config';
 import { save, persist, applySettings } from '../save';
-import { txt, label, panel, button, toggle } from './widgets';
+import { txt, label, panel, button, toggle, slider } from './widgets';
+import { music } from '../music';
 import { L, lang, setLang } from '../i18n';
 
 type Key = 'sound' | 'music' | 'vibrate' | 'reducedFx';
@@ -36,6 +37,7 @@ export function openSettings(scene: Phaser.Scene, showLang = false, depth = 200,
     o.add(txt(scene, MX, ry - (it.note ? px(7) : 0), it.label, px(13), { align: 'left', weight: 500 }));
     if (it.note) o.add(txt(scene, MX, ry + px(10), it.note, px(10), { align: 'left', color: COLOR.dim, weight: 500 }));
     o.add(toggle(scene, W - MX - px(22), ry, !!save[it.key], v => { (save as any)[it.key] = v; persist(); applySettings(); }));
+    if (it.key === 'music') o.add(musicSlider(scene, W - MX - px(56) - px(70), ry));
     const ln = scene.add.graphics(); ln.lineStyle(2, COLOR.line, 1).lineBetween(MX, y + rowH, W - MX, y + rowH); o.add(ln);
     y += rowH;
   });
@@ -47,4 +49,13 @@ export function openSettings(scene: Phaser.Scene, showLang = false, depth = 200,
   }
   o.add(button(scene, W / 2, H - px(26) - px(28), W - MX * 2, px(56), L('닫기', 'Close'), () => { o.destroy(); onClose?.(); }, { kind: 'primary', size: px(16) }));
   return o;
+}
+
+/** 배경음악 줄 안에 넣는 음량 슬라이더 (설정 시트·일시정지 시트 공용) */
+export function musicSlider(scene: Phaser.Scene, x: number, y: number) {
+  return slider(scene, x, y, px(120), save.musicVol, (v, done) => {
+    save.musicVol = v;
+    music.setVolume(v);
+    if (done) persist();
+  });
 }

@@ -13,6 +13,7 @@ import { Modifier, MODIFIERS, todayKey, todayModifier, daySeed, seededRng } from
 import { save, persist } from '../save';
 import { txt, label, num, panel, gauge, button, chip, toggle, segmented, arrowIcon, checkIcon, refreshIcon, CUT_MAIN, CUT_PANEL, RARITY_GLYPH, brackets } from '../ui/widgets';
 import { drawBackground } from '../ui/bg';
+import { musicSlider } from '../ui/settings';
 
 type Img = Phaser.GameObjects.Image;
 type State = 'play' | 'between' | 'cards' | 'paused' | 'over';
@@ -69,6 +70,9 @@ function compact<T extends { dead: boolean }>(arr: T[]) {
   for (let i = 0; i < arr.length; i++) if (!arr[i].dead) arr[j++] = arr[i];
   arr.length = j;
 }
+
+// 표시상 x1 의 실제 속도. x2 는 이것의 두 배
+const GAME_SPEED = 1.5;
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -297,7 +301,7 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     const real = Math.min(delta / 1000, 0.05);
     if (this.state === 'play' || this.state === 'between') {
-      const dt = real * (this.bot ? this.botSpeed : this.speedMode);
+      const dt = real * (this.bot ? this.botSpeed : this.speedMode * GAME_SPEED);
       const steps = Math.max(1, Math.ceil(dt / STEP - 0.001));
       const h = dt / steps;
       for (let i = 0; i < steps && (this.state === 'play' || this.state === 'between'); i++) this.step(h);
@@ -944,6 +948,7 @@ export class GameScene extends Phaser.Scene {
     // 킬 티커 (좌상) · 콤보 (중앙) · 미니 레이더 (우상) — 배경은 hudDyn 에 매 프레임
     this.hudKills = num(this, MX + px(10), PANEL_Y + px(14), '', px(13), COLOR.text, 'left').setDepth(72);
     this.hudGems = num(this, MX + px(10), PANEL_Y + px(32), '', px(12), COLOR.cyan, 'left').setDepth(72);
+    this.hudFeed = [];
     for (let i = 0; i < 2; i++) this.hudFeed.push(txt(this, MX + px(10), PANEL_Y + px(48) + i * px(13), '', px(10), { align: 'left', color: COLOR.dim, weight: 500 }).setDepth(72));
     this.hudCombo = num(this, W / 2, PANEL_Y + px(16), '', px(22), COLOR.text).setDepth(72).setVisible(false);
     this.hudComboLbl = label(this, W / 2, PANEL_Y + px(36), 'COMBO', px(9), COLOR.amber, 'center').setDepth(72).setVisible(false);
@@ -1451,6 +1456,7 @@ export class GameScene extends Phaser.Scene {
       const ry = y + rowH * (i + 0.5);
       o.add(txt(this, MX * 2, ry, name, px(13), { align: 'left', weight: 500 }));
       o.add(toggle(this, W - MX * 2 - px(22), ry, !!save[key], v => { (save as any)[key] = v; persist(); this.applySettingsLive(); }));
+      if (key === 'music') o.add(musicSlider(this, W - MX * 2 - px(56) - px(70), ry));
       const ln = this.add.graphics(); ln.lineStyle(2, COLOR.line, 1).lineBetween(MX * 2, y + rowH * (i + 1), W - MX * 2, y + rowH * (i + 1)); o.add(ln);
     });
     y += rowH * rows.length + px(8);

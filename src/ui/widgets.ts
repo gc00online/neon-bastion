@@ -255,6 +255,37 @@ export function toggle(scene: Phaser.Scene, x: number, y: number, on: boolean, o
   return c;
 }
 
+/** 가로 슬라이더 (0~1). 끄는 동안 onChange(v, false), 손을 떼면 onChange(v, true) */
+export function slider(scene: Phaser.Scene, x: number, y: number, w: number, value: number, onChange: (v: number, done: boolean) => void) {
+  const c = scene.add.container(x, y);
+  const g = scene.add.graphics();
+  const knob = px(14);
+  let v = Phaser.Math.Clamp(value, 0, 1);
+  const draw = () => {
+    g.clear();
+    g.fillStyle(COLOR.line, 1).fillRect(-w / 2, -2, w, 4);
+    g.fillStyle(COLOR.cyan, 1).fillRect(-w / 2, -2, w * v, 4);
+    g.fillStyle(COLOR.text, 1).fillRect(-w / 2 + w * v - knob / 2, -knob / 2, knob, knob);
+  };
+  draw();
+  const zone = scene.add.zone(0, 0, w + px(24), px(44)).setInteractive({ useHandCursor: true });
+  let dragging = false;
+  const set = (p: Phaser.Input.Pointer, done: boolean) => {
+    const wx = scene.cameras.main.getWorldPoint(p.x, p.y).x;
+    v = Phaser.Math.Clamp((wx - c.getWorldTransformMatrix().tx + w / 2) / w, 0, 1);
+    draw();
+    onChange(v, done);
+  };
+  const move = (p: Phaser.Input.Pointer) => { if (dragging) set(p, false); };
+  const up = (p: Phaser.Input.Pointer) => { if (dragging) { dragging = false; set(p, true); } };
+  zone.on('pointerdown', (p: Phaser.Input.Pointer) => { dragging = true; set(p, false); });
+  scene.input.on('pointermove', move);
+  scene.input.on('pointerup', up);
+  c.once('destroy', () => { scene.input?.off('pointermove', move); scene.input?.off('pointerup', up); });
+  c.add([g, zone]);
+  return c;
+}
+
 /** 분할 버튼 (x1 / x2 등) */
 export function segmented(scene: Phaser.Scene, x: number, y: number, items: string[], active: number, cellW: number, cellH: number, onChange: (i: number) => void) {
   const c = scene.add.container(x, y);

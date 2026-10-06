@@ -19,6 +19,10 @@ export interface SaveData {
   vibrate: boolean;
   tips: Record<string, boolean>;
   daily: DailyRecord;
+  /** 화면 흔들림·플래시·스캔라인 끄기 (멀미·눈부심 대응) */
+  reducedFx: boolean;
+  /** 마지막 출격 요약 (메뉴 티커용) */
+  lastRun: { wave: number; kills: number; time: number; gems: number } | null;
 }
 
 const KEY = 'neon-bastion-save-v1';
@@ -28,6 +32,8 @@ const fresh = (): SaveData => ({
   sound: true, music: true, vibrate: true,
   tips: {},
   daily: { day: '', best: 0, runs: 0 },
+  reducedFx: false,
+  lastRun: null,
 });
 
 export let save: SaveData = parse(safeLocal());
@@ -65,6 +71,8 @@ export function applySettings() {
   haptics.enabled = save.vibrate;
   music.setEnabled(save.music);
 }
+
+export const reducedFx = () => !!save.reducedFx;
 
 export function resetSave() {
   save = fresh();

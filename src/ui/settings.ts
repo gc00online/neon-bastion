@@ -1,45 +1,50 @@
 import Phaser from 'phaser';
-import { W, H, COLOR } from '../config';
+import { W, H, COLOR, px } from '../config';
 import { save, persist, applySettings } from '../save';
-import { txt, panel, button } from './widgets';
+import { txt, label, panel, button, toggle } from './widgets';
 import { L, lang, setLang } from '../i18n';
 
-type Key = 'sound' | 'music' | 'vibrate';
+type Key = 'sound' | 'music' | 'vibrate' | 'reducedFx';
 
-const ITEMS: { key: Key; label: string }[] = [
+const ITEMS: { key: Key; label: string; note?: string }[] = [
   { key: 'sound', label: L('효과음', 'Sound FX') },
   { key: 'music', label: L('배경음악', 'Music') },
   { key: 'vibrate', label: L('진동', 'Vibration') },
+  { key: 'reducedFx', label: L('화면 흔들림 · 플래시 끄기', 'Reduce shake & flash'), note: L('멀미나 눈부심이 있으면 켜세요', 'Turn on if effects cause discomfort') },
 ];
 
-// 메뉴와 일시정지 화면에서 같이 쓰는 설정 창
+// 메뉴와 일시정지 화면에서 같이 쓰는 설정 시트
 // showLang: 언어를 바꾸면 화면을 새로 불러오므로 메뉴에서만 보여준다
 export function openSettings(scene: Phaser.Scene, showLang = false, depth = 200, onClose?: () => void) {
+  const MX = px(24);
   const o = scene.add.container(0, 0).setDepth(depth);
-  const cy = H / 2;
-  const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x03040a, 0.85).setInteractive();
-  const g = scene.add.graphics();
-  panel(g, W / 2, cy, 540, 660, COLOR.cyan);
-  o.add([dim, g, txt(scene, W / 2, cy - 260, L('설정', 'SETTINGS'), 44, { color: COLOR.cyan, glow: true })]);
+  const dim = scene.add.rectangle(W / 2, H / 2, W, H, COLOR.bg, 0.72).setInteractive();
+  o.add(dim);
+  const rowH = px(48);
+  const sheetH = px(60) + rowH * ITEMS.length + (showLang ? rowH : 0) + px(110);
+  const sy = H - sheetH;
+  const sg = scene.add.graphics();
+  panel(sg, W / 2, sy + sheetH / 2 + 2, W + 4, sheetH + 4, { fill: COLOR.surf1, stroke: COLOR.lineP, cut: { tl: px(24), tr: px(24) } });
+  sg.fillStyle(COLOR.lineP, 1).fillRect(W / 2 - px(18), sy + px(14), px(36), 3);
+  o.add(sg);
+  o.add(label(scene, MX, sy + px(38), 'SETTINGS', px(10), COLOR.cyan));
+  o.add(txt(scene, W - MX, sy + px(38), L('설정', 'Settings'), px(14), { align: 'right', weight: 600 }));
 
-  const label = (k: Key, name: string) => `${name}   ${save[k] ? 'ON' : 'OFF'}`;
-  ITEMS.forEach((it, i) => {
-    const b = button(scene, W / 2, cy - 150 + i * 100, 420, 80, label(it.key, it.label), COLOR.white, () => {
-      save[it.key] = !save[it.key];
-      persist();
-      applySettings();
-      b.setLabel(label(it.key, it.label));
-    }, 28);
-    o.add(b);
+  let y = sy + px(56);
+  ITEMS.forEach(it => {
+    const ry = y + rowH / 2;
+    o.add(txt(scene, MX, ry - (it.note ? px(7) : 0), it.label, px(13), { align: 'left', weight: 500 }));
+    if (it.note) o.add(txt(scene, MX, ry + px(10), it.note, px(10), { align: 'left', color: COLOR.dim, weight: 500 }));
+    o.add(toggle(scene, W - MX - px(22), ry, !!save[it.key], v => { (save as any)[it.key] = v; persist(); applySettings(); }));
+    const ln = scene.add.graphics(); ln.lineStyle(2, COLOR.line, 1).lineBetween(MX, y + rowH, W - MX, y + rowH); o.add(ln);
+    y += rowH;
   });
-
-  if (showLang) o.add(button(scene, W / 2, cy + 150, 420, 80, lang === 'ko' ? 'Language: 한국어' : 'Language: English', COLOR.white, () => {
-    setLang(lang === 'ko' ? 'en' : 'ko');
-  }, 26));
-
-  o.add(button(scene, W / 2, cy + 260, 300, 80, L('닫기', 'Close'), COLOR.cyan, () => {
-    o.destroy();
-    onClose?.();
-  }, 28));
+  if (showLang) {
+    const ry = y + rowH / 2;
+    o.add(txt(scene, MX, ry, 'Language', px(13), { align: 'left', weight: 500 }));
+    o.add(button(scene, W - MX - px(60), ry, px(120), px(36), lang === 'ko' ? '한국어 ▸ EN' : 'English ▸ KO', () => setLang(lang === 'ko' ? 'en' : 'ko'), { kind: 'secondary', size: px(12), cut: {} }));
+    y += rowH;
+  }
+  o.add(button(scene, W / 2, H - px(26) - px(28), W - MX * 2, px(56), L('닫기', 'Close'), () => { o.destroy(); onClose?.(); }, { kind: 'primary', size: px(16) }));
   return o;
 }

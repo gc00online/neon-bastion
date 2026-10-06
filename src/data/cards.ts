@@ -5,10 +5,10 @@ import type { Ability, Stats } from '../game/stats';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export const RARITY: Record<Rarity, { name: string; color: number }> = {
-  common: { name: L('일반', 'COMMON'), color: COLOR.white },
-  rare: { name: L('희귀', 'RARE'), color: COLOR.blue },
-  epic: { name: L('영웅', 'EPIC'), color: COLOR.purple },
-  legendary: { name: L('전설', 'LEGENDARY'), color: COLOR.yellow },
+  common: { name: L('일반', 'COMMON'), color: COLOR.body },
+  rare: { name: L('희귀', 'RARE'), color: COLOR.rare },
+  epic: { name: L('영웅', 'EPIC'), color: COLOR.epic },
+  legendary: { name: L('전설', 'LEGENDARY'), color: COLOR.legend },
 };
 
 export interface CardCtx {

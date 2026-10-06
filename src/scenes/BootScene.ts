@@ -156,6 +156,51 @@ export class BootScene extends Phaser.Scene {
       ctx.stroke();
     });
 
+    // 파편 (처치 폭발·기지 피격)
+    this.tex('shard', 24, 8, (ctx) => {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 2, 24, 4);
+    });
+    // 얇은 링 (충격파·치명타)
+    this.tex('ringthin', 256, 256, (ctx, s) => {
+      ctx.beginPath();
+      ctx.arc(s / 2, s / 2, RING_R, 0, Math.PI * 2);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+    });
+    // 냉기 결정 (작은 육각 외곽선)
+    this.tex('crystal', 32, 32, (ctx, s) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const x = s / 2 + Math.cos(a) * 12, y = s / 2 + Math.sin(a) * 12;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+    });
+    // 비네팅 (가장자리 어둡게/붉게)
+    this.tex('vignette', 256, 256, (ctx, s) => {
+      const g = ctx.createRadialGradient(s / 2, s / 2, s * 0.25, s / 2, s / 2, s * 0.72);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,1)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+    });
+    // 4점 별 플레어 (치명타)
+    this.tex('flare', 96, 96, (ctx, s) => {
+      const c = s / 2;
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(c, 2); ctx.lineTo(c + 5, c - 5); ctx.lineTo(s - 2, c); ctx.lineTo(c + 5, c + 5);
+      ctx.lineTo(c, s - 2); ctx.lineTo(c - 5, c + 5); ctx.lineTo(2, c); ctx.lineTo(c - 5, c - 5);
+      ctx.closePath(); ctx.fill();
+    });
+
     this.tex('missile', 64, 64, (ctx) => {
       ctx.shadowColor = '#fff';
       ctx.shadowBlur = 10;
@@ -166,7 +211,15 @@ export class BootScene extends Phaser.Scene {
       ctx.fill();
     });
 
-    loadSave().then(() => {
+    const fonts = (document as any).fonts?.load
+      ? Promise.all([
+          (document as any).fonts.load('700 20px "Chakra Petch"'),
+          (document as any).fonts.load('600 20px "Chakra Petch"'),
+          (document as any).fonts.load('600 20px "IBM Plex Sans KR"'),
+          (document as any).fonts.load('500 20px "IBM Plex Sans KR"'),
+        ]).catch(() => undefined)
+      : Promise.resolve();
+    Promise.all([loadSave(), Promise.race([fonts, new Promise(r => setTimeout(r, 2500))])]).then(() => {
       applySettings();
       this.scene.start(new URLSearchParams(location.search).has('bot') ? 'Game' : 'Menu');
     });

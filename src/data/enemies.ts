@@ -1,4 +1,3 @@
-import { COLOR } from '../config';
 import { L } from '../i18n';
 
 export type EnemyKind =
@@ -17,18 +16,18 @@ export interface EnemyDef {
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
-  grunt: { tex: 'e_circle', color: COLOR.red, hp: 18, speed: 70, r: 16, dmg: 6, spin: 0 },
-  runner: { tex: 'e_tri', color: COLOR.yellow, hp: 9, speed: 140, r: 14, dmg: 4, spin: 0 },
-  brute: { tex: 'e_square', color: COLOR.purple, hp: 80, speed: 40, r: 24, dmg: 15, spin: 0.6 },
-  swarm: { tex: 'e_circle', color: COLOR.green, hp: 5, speed: 105, r: 9, dmg: 2, spin: 0 },
-  shooter: { tex: 'e_diamond', color: COLOR.blue, hp: 28, speed: 62, r: 17, dmg: 5, spin: 0 },
-  splitter: { tex: 'e_penta', color: COLOR.orange, hp: 48, speed: 55, r: 21, dmg: 8, spin: 1.2 },
-  mini: { tex: 'e_penta', color: COLOR.orange, hp: 10, speed: 98, r: 10, dmg: 3, spin: 2.5 },
-  healer: { tex: 'e_plus', color: 0x7cffcb, hp: 36, speed: 52, r: 18, dmg: 5, spin: 0.8 },
-  blinker: { tex: 'e_star', color: 0xf15bb5, hp: 24, speed: 60, r: 16, dmg: 7, spin: 3 },
-  boss: { tex: 'e_hex', color: COLOR.pink, hp: 250, speed: 24, r: 48, dmg: 10, spin: 0.4, boss: L('헥스 타이탄', 'Hex Titan') },
-  queen: { tex: 'e_octa', color: 0xb5ff3b, hp: 210, speed: 20, r: 46, dmg: 8, spin: -0.3, boss: L('하이브 퀸', 'Hive Queen') },
-  artillery: { tex: 'e_diamond', color: 0x7b8cff, hp: 190, speed: 26, r: 44, dmg: 5, spin: 0, boss: L('아틸러리', 'Artillery') },
+  grunt: { tex: 'e_circle', color: 0xff4d5e, hp: 18, speed: 70, r: 16, dmg: 6, spin: 0 },
+  runner: { tex: 'e_tri', color: 0xff7a5e, hp: 9, speed: 140, r: 14, dmg: 4, spin: 0 },
+  brute: { tex: 'e_square', color: 0xd9405f, hp: 80, speed: 40, r: 24, dmg: 15, spin: 0.6 },
+  swarm: { tex: 'e_circle', color: 0xff8a95, hp: 5, speed: 105, r: 9, dmg: 2, spin: 0 },
+  shooter: { tex: 'e_diamond', color: 0xff4da6, hp: 28, speed: 62, r: 17, dmg: 5, spin: 0 },
+  splitter: { tex: 'e_penta', color: 0xff6e4d, hp: 48, speed: 55, r: 21, dmg: 8, spin: 1.2 },
+  mini: { tex: 'e_penta', color: 0xff6e4d, hp: 10, speed: 98, r: 10, dmg: 3, spin: 2.5 },
+  healer: { tex: 'e_plus', color: 0xff9eb0, hp: 36, speed: 52, r: 18, dmg: 5, spin: 0.8 },
+  blinker: { tex: 'e_star', color: 0xff5ed6, hp: 24, speed: 60, r: 16, dmg: 7, spin: 3 },
+  boss: { tex: 'e_hex', color: 0xff4d5e, hp: 250, speed: 24, r: 48, dmg: 10, spin: 0.4, boss: L('헥스 타이탄', 'Hex Titan') },
+  queen: { tex: 'e_octa', color: 0xff2e6e, hp: 210, speed: 20, r: 46, dmg: 8, spin: -0.3, boss: L('하이브 퀸', 'Hive Queen') },
+  artillery: { tex: 'e_diamond', color: 0xff6e8a, hp: 190, speed: 26, r: 44, dmg: 5, spin: 0, boss: L('아틸러리', 'Artillery') },
 };
 
 export const BOSS_ORDER: EnemyKind[] = ['boss', 'queen', 'artillery'];

@@ -42,6 +42,7 @@
 2. 실제 아이폰 연결해서 ▶ 실행 → 플레이 테스트
 3. App Store Connect에서 새 앱 생성 (번들 ID = appId)
 4. Xcode › Product › Archive → Distribute App → App Store Connect 업로드
+   - 팀에 등록된 기기가 없어 아카이브가 실패하면: `CODE_SIGNING_ALLOWED=NO` 로 아카이브 → `xcodebuild -exportArchive -allowProvisioningUpdates` (method `app-store-connect`, destination `upload`) 로 서명·업로드
 5. TestFlight로 테스트 → 스토어 정보 입력(`store/listing.md`) → 스크린샷 업로드(`store/ios`) → 심사 제출
 
 ## 5. Android 출시

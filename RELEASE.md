@@ -4,7 +4,7 @@
 - [x] 게임 본체 (한국어/영어)
 - [x] iOS / Android 프로젝트 (`ios/`, `android/`) — 세로 고정, 상태바 숨김, iPhone 전용
 - [x] 앱 아이콘, 스플래시 (모든 크기 생성 완료)
-- [x] 스토어 스크린샷: `store/ios`, `store/ios-en` (1320×2868), `store/google`, `store/google-en` (1080×1920)
+- [x] 스토어 스크린샷(최신): `store/screenshots/iphone-6.9` (1320×2868, 앱스토어엔 1206×2622로 축소해 올림), `store/screenshots/google-1080x2160` (구글용, 2:1 여백). `store/ios`·`store/google` 은 첫 버전 화면이라 쓰지 말 것
 - [x] Google Play 그래픽 이미지 `store/google-feature-graphic-1024x500.png`, 아이콘 `store/google-icon-512.png`
 - [x] 스토어 설명문·키워드·심사 설문 답변: `store/listing.md`
 - [x] 개인정보처리방침 초안: `public/privacy.html` → https://gc00online.github.io/neon-bastion/privacy.html

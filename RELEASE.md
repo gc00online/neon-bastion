@@ -35,7 +35,7 @@
 - [ ] `capacitor.config.ts`의 `appId` → 본인 고유 ID (예: `com.yourname.neonbastion`). **한 번 올리면 못 바꿈**
       바꾼 뒤: `ios/`, `android/` 폴더 삭제 → `npx cap add ios && npx cap add android` → 아이콘 재생성 명령 실행 → 세로 고정 설정 다시 적용
       (이 작업은 요청하시면 제가 해드릴게요)
-- [ ] `public/privacy.html`의 [개발자 이름], [연락처 이메일] 채우기 (푸시하면 GitHub Pages에 자동 반영)
+- [x] `public/privacy.html`의 개발자 이름(low-hi), 연락처 이메일(1@low-hi.co.kr) 채우기 (푸시하면 GitHub Pages에 자동 반영)
 
 ## 4. iOS 출시
 1. `npm run ios` → Xcode에서 App 타깃 › Signing & Capabilities › Team 선택
